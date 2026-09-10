@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Salvage</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <!-- The same file the taskbar and the installer use, so the mark inside
+           the window can never drift from the one outside it. Produced by
+           tools/install_icon.py. -->
+      <img class="brand-mark" src="brand.png" alt="" width="34" height="34" />
+      <div>
+        <h1>
+          Salvage
+          <!-- Filled at startup from the crate version. Empty until then, so a
+               build that cannot report its version shows nothing rather than a
+               placeholder somebody might quote in a bug report. -->
+          <span id="app-version" class="version-badge" hidden></span>
+        </h1>
+        <p class="brand-sub" data-i18n="app.tagline"></p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <!-- The window's own language, chosen here and remembered. Every sentence
+           on this screen comes from ui/i18n.js; nothing below the window had to
+           learn a second language, because the layers below it return
+           classifications and numbers and never prose. -->
+      <!-- The native select carries the behaviour and the accessible name;
+           the frame, the globe and the caret are drawn around it. `appearance:
+           none` takes the platform's own control away, so the caret below is
+           not decoration — it is the only thing left saying this opens. -->
+      <div class="lang-pick">
+        <svg class="lang-icon" viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.2" />
+          <path d="M1.8 8h12.4" />
+          <path d="M8 1.8c2 2.1 2 10.3 0 12.4" />
+          <path d="M8 1.8c-2 2.1-2 10.3 0 12.4" />
+        </svg>
+        <select id="lang-select" data-i18n-aria="ui.language"></select>
+        <svg class="lang-caret" viewBox="0 0 10 6" aria-hidden="true">
+          <path d="M1 1l4 4 4-4" />
+        </svg>
+      </div>
+      <button id="btn-refresh" class="btn btn-ghost" data-i18n="ui.refresh"></button>
+    </div>
+  </header>
+
+  <main class="layout">
+
+    <!-- ─────────────────────────────── coluna esquerda ─────────────────── -->
+    <section class="panel panel-left">
+      <h2 class="panel-title" data-i18n="ui.device"></h2>
+
+      <div class="field">
+        <label for="device-select" data-i18n="ui.selectCard"></label>
+        <select id="device-select">
+          <option value="" data-i18n="ui.searching"></option>
+        </select>
+      </div>
+
+      <div id="device-details" class="device-details hidden">
+        <dl class="spec">
+          <div><dt data-i18n="spec.capacity"></dt><dd id="spec-capacity">—</dd></div>
+          <div><dt data-i18n="spec.bus"></dt><dd id="spec-bus">—</dd></div>
+          <div><dt data-i18n="spec.sectors"></dt><dd id="spec-sectors">—</dd></div>
+          <div><dt data-i18n="spec.volumes"></dt><dd id="spec-volumes">—</dd></div>
+        </dl>
+        <div id="safety-box" class="safety"></div>
+        <div id="prior-note" class="prior-note hidden"></div>
+      </div>
+
+      <div id="no-device" class="empty-note" data-i18n-html="ui.noCardDetected"></div>
+
+      <div class="divider"></div>
+
+      <h2 class="panel-title" data-i18n="ui.inspection"></h2>
+      <p class="hint" data-i18n-html="ui.inspectionHint"></p>
+
+      <div class="actions">
+        <button id="btn-scan" class="btn btn-primary" disabled data-i18n="ui.inspect"></button>
+        <button id="btn-cancel" class="btn btn-danger hidden" data-i18n="ui.cancel"></button>
+      </div>
+    </section>
+
+    <!-- ──────────────────────────────── coluna central ─────────────────── -->
+    <section class="stage">
+      <div class="card-stage">
+      <div class="address-scale" id="address-scale" aria-hidden="true"></div>
+      <div class="card-wrap">
+        <svg class="card-shell" viewBox="0 0 220 300" aria-hidden="true">
+          <defs>
+            <linearGradient id="shell" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#2b3444" />
+              <stop offset="100%" stop-color="#1b222e" />
+            </linearGradient>
+            <!-- Lit from above, like the rest of the interface. A flat fill
+                 reads as a printed stripe; the gradient reads as metal. -->
+            <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#d8b45e" />
+              <stop offset="55%" stop-color="#b08d3f" />
+              <stop offset="100%" stop-color="#8a6c2c" />
+            </linearGradient>
+          </defs>
+          <path class="shell-body" fill="url(#shell)"
+                d="M46 3 L206 3 Q217 3 217 14 L217 286 Q217 297 206 297
+                   L14 297 Q3 297 3 286 L3 46 Z" />
+          <rect class="contact-plate" x="50" y="9" width="156" height="36" rx="3.5" />
+          <g class="contacts">
+            <rect x="55.0" y="14.5" width="13" height="25" rx="2" />
+            <rect x="73.5" y="14.5" width="13" height="25" rx="2" />
+            <rect x="92.0" y="14.5" width="13" height="25" rx="2" />
+            <rect x="110.5" y="14.5" width="13" height="25" rx="2" />
+            <rect x="129.0" y="14.5" width="13" height="25" rx="2" />
+            <rect x="147.5" y="14.5" width="13" height="25" rx="2" />
+            <rect x="166.0" y="14.5" width="13" height="25" rx="2" />
+            <rect x="184.5" y="14.5" width="13" height="25" rx="2" />
+          </g>
+          <path class="shell-edge" fill="none"
+                d="M46 3 L206 3 Q217 3 217 14 L217 286 Q217 297 206 297
+                   L14 297 Q3 297 3 286 L3 46 Z" />
+        </svg>
+
+        <canvas id="sector-canvas" class="sector-canvas"></canvas>
+
+        <div id="stage-idle" class="stage-idle">
+          <p data-i18n="stage.selectFirst"></p>
+        </div>
+      </div>
+      </div>
+
+      <div class="progress-block">
+        <div class="progress-head">
+          <span id="phase-label" data-i18n="phase.waiting"></span>
+          <span id="progress-pct">—</span>
+        </div>
+        <div class="progress-track"><div id="progress-bar" class="progress-fill"></div></div>
+        <p id="progress-detail" class="progress-detail">&nbsp;</p>
+      </div>
+
+      <ul class="legend" id="legend"></ul>
+    </section>
+
+    <!-- ─────────────────────────────── coluna direita ──────────────────── -->
+    <section class="panel panel-right">
+
+      <!-- Zone 1: the verdict. One block, always open, and the only place this
+           panel raises its voice. Approved and condemned are an adversarial
+           pair, so they read as two ends of one bar rather than two tiles. -->
+      <h2 class="panel-title" data-i18n="ui.result"></h2>
+
+      <div id="diagnosis-empty" class="empty-note" data-i18n="ui.resultEmpty"></div>
+
+      <div id="diagnosis" class="hidden">
+        <div class="verdict">
+          <div class="verdict-head">
+            <div class="verdict-usable">
+              <span id="verdict-figure" class="verdict-figure"></span>
+              <span class="verdict-caption" data-i18n="verdict.usable"></span>
+            </div>
+            <span id="assurance-badge" class="assurance"></span>
+          </div>
+
+          <div class="verdict-split" role="img" aria-labelledby="verdict-split-text">
+            <div id="verdict-bar-good" class="verdict-seg good"></div>
+            <div id="verdict-bar-bad" class="verdict-seg bad"></div>
+          </div>
+          <p id="verdict-split-text" class="verdict-legend"></p>
+
+          <h3 id="scenario-label" class="scenario"></h3>
+          <p id="scenario-mechanism" class="statement"></p>
+          <p id="assurance-statement" class="statement statement-dim"></p>
+        </div>
+
+        <!-- Zone 2: the evidence. Real, and needed to justify the verdict, but
+             it is reference material — it should not compete with the decision
+             below it. Native <details> gives keyboard access for free. -->
+        <details class="evidence">
+          <summary>
+            <span data-i18n="ui.evidence"></span>
+            <span id="evidence-count" class="evidence-count"></span>
+          </summary>
+          <ul id="scenario-details" class="details"></ul>
+          <table class="counts">
+            <caption class="sr-only" data-i18n="ui.sectorStates"></caption>
+            <tbody id="counts-body"></tbody>
+          </table>
+        </details>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Zone 3: the decision. -->
+      <h2 class="panel-title" data-i18n="ui.isolation"></h2>
+      <div id="plan-empty" class="empty-note" data-i18n="ui.isolationEmpty"></div>
+
+      <!-- Holds either the chooser or, when nothing can be built, the reason.
+           Never both: once the answer is "this card cannot be partitioned", the
+           filesystem selector has nothing left to select for. -->
+      <div id="plan-area" class="hidden">
+        <div id="plan-controls">
+          <div class="field">
+            <label for="fs-select" data-i18n="ui.filesystem"></label>
+            <select id="fs-select">
+              <option value="exfat" data-i18n="fs.exfat"></option>
+              <option value="fat32" data-i18n="fs.fat32"></option>
+            </select>
+          </div>
+        </div>
+        <div id="plan-refusal" class="refusal hidden"></div>
+        <div id="plan-list" class="plan-list" role="radiogroup"
+             data-i18n-aria="ui.plansLabel"></div>
+      </div>
+
+      <!-- Pinned: the action must stay reachable without scrolling past every
+           layout to find it. -->
+      <div id="plan-actions" class="panel-actions hidden">
+        <button id="btn-apply" class="btn btn-primary" data-i18n="ui.applyPlan"></button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ───────────────────────────────── modal ───────────────────────────── -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-box">
+      <h3 id="modal-title" data-i18n="modal.confirmTitle"></h3>
+      <div id="modal-body" class="modal-body"></div>
+      <div class="field" id="modal-typed">
+        <label for="modal-input">
+          <span data-i18n="modal.typeName"></span>
+          <strong id="modal-expected"></strong>
+        </label>
+        <input id="modal-input" type="text" autocomplete="off" spellcheck="false" />
+        <p id="modal-error" class="modal-error"></p>
+      </div>
+      <div class="modal-actions">
+        <button id="modal-cancel" class="btn btn-ghost" data-i18n="modal.cancel"></button>
+        <button id="modal-confirm" class="btn btn-danger" disabled data-i18n="modal.confirm"></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="failure" class="failure hidden"></div>
+
+  <footer class="statusbar">
+    <span data-i18n="footer.diagnostics"></span>
+    <!-- A button, for the same reason as the attribution: an anchor to a
+         file:// path would navigate this webview to it. The path text keeps
+         `user-select: all` so it can still be copied into a support message,
+         which is most of what anyone does with it. -->
+    <button id="log-path" class="log-path" type="button"
+            data-i18n-aria="footer.openLog">—</button>
+    <span class="statusbar-gap"></span>
+    <!-- A button, not an anchor. An <a href> here would navigate this very
+         webview to the page and replace the interface with it; the backend
+         opens the address in the user's own browser instead, and does it
+         through explorer.exe so the browser does not inherit Administrator. -->
+    <button id="author-link" class="author-link" type="button">
+      <span class="author-by" data-i18n="footer.by"></span><strong>OmTsTM</strong>
+      <svg class="author-out" viewBox="0 0 10 10" aria-hidden="true">
+        <path d="M3 7L7 3M4 3h3v3" />
+      </svg>
+    </button>
+  </footer>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="i18n.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

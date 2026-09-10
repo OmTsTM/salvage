@@ -1,0 +1,83 @@
+name: Release
+
+# Cutting a release is pushing a tag. Everything below is what would otherwise
+# have to be remembered and done by hand on somebody's laptop, which is how
+# releases end up built from a dirty tree.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and publish, e.g. v0.2.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Pillow
+        run: pip install pillow
+
+      # Rendered from the committed source here too, so a release can never ship
+      # icon sizes that drift from the artwork in the repository.
+      - name: Reinstall the icon
+        run: python tools/install_icon.py assets/icon-source.png
+
+      - name: Formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace
+
+      - name: Build the installer and publish the release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: Salvage ${{ github.event.inputs.tag || github.ref_name }}
+          releaseBody: |
+            Windows installer. Run as Administrator: Salvage needs raw disk
+            access, and the installed shortcut requests elevation on launch.
+
+            The installer carries the WebView2 runtime, so it needs no internet
+            connection and nothing else has to be installed first.
+
+            **Salvage writes to raw disks.** Read the safety notes in the README
+            before pointing it at anything you care about.
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: false
+
+      # Also published on its own: the bare executable, for people who cannot
+      # run an installer. It relies on the WebView2 runtime already being
+      # present, which it is on any current Windows.
+      - name: Attach the portable executable
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.inputs.tag || github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          Copy-Item target/release/salvage-gui.exe "Salvage-$version-portable.exe"
+          gh release upload $tag "Salvage-$version-portable.exe" --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

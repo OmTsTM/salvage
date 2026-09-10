@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/salvage-core",
+    "crates/salvage-app",
+    "crates/salvage-win32",
+    "src-tauri",
+]
+
+[workspace.package]
+version = "0.5.6"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT"
+
+[workspace.dependencies]
+salvage-core = { path = "crates/salvage-core" }
+salvage-app = { path = "crates/salvage-app" }
+salvage-win32 = { path = "crates/salvage-win32" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

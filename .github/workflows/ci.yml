@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    # The infrastructure crate is Win32-specific, so the whole workspace builds
+    # on Windows. Tests that need raw disk access detect the missing privilege
+    # and return early rather than failing the run.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      # Nothing compiles the window's script, so a syntax error in it reaches
+      # the user as a window that draws and then does nothing. That is how
+      # 0.3.0 shipped: a duplicated `const` block, a script that never ran,
+      # and a device list frozen on its placeholder.
+      - name: Window scripts
+        run: Get-ChildItem ui -Filter *.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE -ne 0) { exit 1 } }
+
+      - name: Formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace
+
+      # A dependency advisory is a defect like any other, and finding it at
+      # release time is finding it too late.
+      - name: Dependency audit
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # The domain and application layers carry no OS dependency. Building them on
+  # Linux proves that claim instead of merely asserting it in the README.
+  portability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Core and application build without Windows
+        run: cargo test -p salvage-core -p salvage-app

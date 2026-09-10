@@ -1,0 +1,21 @@
+[package]
+name = "salvage-gui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Graphical interface for inspecting and repartitioning microSD cards."
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+salvage-core = { workspace = true }
+salvage-app = { workspace = true }
+salvage-win32 = { workspace = true }
+tauri = { version = "2", features = [] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

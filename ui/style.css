@@ -1,0 +1,1198 @@
+/* Salvage — stylesheet
+   A restrained interface: the card at the centre is the only element carrying
+   visual weight, because it holds the information the user needs to read. */
+
+:root {
+  /* An instrument panel, not a generic app: blue-tinted graphite rather than
+     pure black, which sinks on an OLED display and drains the interface. */
+  --bg:            #0a0d13;
+  --panel:         #111621;
+  --panel-raised:  #182030;
+  --border:        #263244;
+  --border-soft:   #1b2432;
+
+  /* Contrast checked against --panel: primary text above 12:1, secondary above
+     7:1, tertiary above 4.5:1. */
+  --text:          #eef3f8;
+  --text-dim:      #a7b5c6;
+  --text-faint:    #7b8a9c;
+
+  --accent:        #56b6ff;
+  --accent-dim:    #1d5b87;
+
+  --st-untested:   #232b38;
+  --st-good:       #34d399;
+  --st-bad-read:   #fbbf24;
+  --st-bad-write:  #fb923c;
+  --st-corrupt:    #f43f5e;
+  --st-aliased:    #c084fc;
+  --st-fenced:     #64748b;
+
+  --danger:        #f43f5e;
+  --warn:          #fbbf24;
+  --ok:            #34d399;
+
+  /* Restrained corners: a measuring instrument has a chamfer, not a generous
+     radius. */
+  --radius:        8px;
+  --radius-sm:     5px;
+
+  /* Dense spacing scale, appropriate to a data panel. */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px;
+  --space-4: 16px; --space-5: 24px; --space-6: 32px;
+
+  /* Numbers and addresses in monospace: they align in columns and compare at a
+     glance, which is what one does with measurements. */
+  --font-data: "Cascadia Mono", "Fira Code", "JetBrains Mono", Consolas, monospace;
+  --font-ui:   "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ───────────────────────────────────────────────────────── barra superior */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border-soft);
+  background: linear-gradient(180deg, #131a23 0%, #10161e 100%);
+  flex: 0 0 auto;
+}
+
+.brand { display: flex; align-items: center; gap: 13px; }
+
+/* One row, whatever the language. Without this the picker and the button
+   stacked as soon as a label grew, and Spanish grew it. */
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+/* Echoes the application icon: same card, same beam. */
+/* The application icon itself, not a redrawn approximation of it. Rounded so a
+   full-bleed square mark sits comfortably beside the wordmark. */
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  display: block;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.brand-sub {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* ─────────────────────────────────────────────────────────────── layout */
+
+.layout {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 306px minmax(430px, 1fr) 340px;
+  gap: 1px;
+  background: var(--border-soft);
+  min-height: 0;
+}
+
+.panel {
+  background: var(--panel);
+  padding: 18px 20px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* The right panel scrolls its content but keeps the action pinned: with four
+   layouts open, "Aplicar" used to sit below everything and had to be hunted
+   for. */
+.panel-right {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+.panel-right > .divider,
+.panel-right > .panel-title,
+.panel-right > #diagnosis,
+.panel-right > #plan-area,
+.panel-right > .empty-note { flex: 0 0 auto; }
+
+.panel-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 14px -20px 0;
+  padding: 12px 20px;
+  background: var(--panel);
+  border-top: 1px solid var(--border-soft);
+}
+.panel-actions .btn { width: 100%; }
+
+.panel-title {
+  margin: 0 0 13px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.divider {
+  height: 1px;
+  background: var(--border-soft);
+  margin: 22px 0 18px;
+}
+
+/* ──────────────────────────────────────────────────── campos e controles */
+
+.field { margin-bottom: 15px; }
+
+.field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+select, input[type="text"] {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--panel-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+select:focus, input[type="text"]:focus { border-color: var(--accent); }
+select:disabled { opacity: 0.5; }
+
+.hint {
+  margin: 7px 0 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  line-height: 1.45;
+}
+
+/* The hint above ends flush against its last line, so the gap before the
+   button is this margin's job. Without it the primary action reads as part of
+   the paragraph explaining what it does. */
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: var(--space-4);
+}
+
+.btn {
+  padding: 9px 15px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #06202b;
+  font-weight: 600;
+  flex: 1;
+}
+.btn-primary:not(:disabled):hover { background: #5cc9fa; }
+
+.btn-ghost {
+  background: var(--panel-raised);
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-ghost:not(:disabled):hover { border-color: #34445a; background: #1f2937; }
+
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: #5b2626;
+}
+.btn-danger:not(:disabled):hover { background: #2a1516; }
+
+/* ────────────────────────────────────────────── detalhes do dispositivo */
+
+.spec { margin: 0 0 14px; }
+.spec > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.spec dt { color: var(--text-faint); font-size: 12px; }
+.spec dd {
+  margin: 0;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  text-align: right;
+  letter-spacing: -0.01em;
+}
+
+/* The card's printed capacity, standing beside the smaller figure that
+   replaced it. Dimmed and on its own line: it is context, not the reading. */
+.spec-was {
+  display: block;
+  color: var(--text-faint);
+  font-size: 10.5px;
+}
+
+.safety {
+  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.safety.allowed {
+  background: rgba(45, 212, 167, 0.07);
+  border-color: var(--ok);
+}
+.safety.needs_confirmation {
+  background: rgba(251, 191, 36, 0.07);
+  border-color: var(--warn);
+}
+.safety.blocked {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: var(--danger);
+}
+.safety strong { display: block; margin-bottom: 5px; }
+.safety ul { margin: 6px 0 0; padding-left: 17px; color: var(--text-dim); }
+.safety li { margin-bottom: 4px; }
+
+.empty-note {
+  padding: 13px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* A card this program already fenced. Informative, not a warning and not an
+   absence: the accent rail marks it as something the program knows about this
+   card, which is why it does not borrow the dashed frame of the empty notes. */
+.prior-note {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  background: rgba(86,182,255,.06);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.prior-note strong { color: var(--text); }
+.prior-note p { margin: 6px 0 0; }
+.prior-note p:last-child { margin-bottom: 0; }
+
+/* ────────────────────────────────────────────────────── palco do cartão */
+
+.stage {
+  background: radial-gradient(ellipse at 50% 32%, #161f2b 0%, var(--bg) 72%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  gap: 18px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Sized from the height actually left over, not from a fixed ceiling. The
+   320px cap meant the card stayed small while the column below it sat empty —
+   and this card is the whole point of the screen. The subtrahend is the
+   furniture above and below it: topbar, status bar, stage padding, the progress
+   block, the legend and the gaps between them. */
+.card-wrap {
+  position: relative;
+  /* Sized from the height actually left over, and sized by *height*: a width
+     of min(100%, …) resolved its percentage against a shrink-to-fit flex
+     parent, which is circular, and collapsed the card to a stamp. The
+     subtrahend is the furniture above and below — topbar, status bar, stage
+     padding, the progress block, the legend, and the gaps between them. */
+  height: min(calc(100vh - 336px), 640px);
+  align-self: center;
+  aspect-ratio: 220 / 300;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 18px 38px rgba(0, 0, 0, 0.55));
+}
+
+.card-shell {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.shell-edge { stroke: #3c4a5e; stroke-width: 1.6; }
+/* The recess the contacts sit in: darker than the shell, with a hairline lip
+   along the top where the light would catch the step. */
+.contact-plate {
+  fill: #161c26;
+  stroke: #38455a;
+  stroke-width: 1;
+}
+.contacts rect { fill: url(#pin); }
+
+/* The grid occupies the card body, below the contact strip. */
+.sector-canvas {
+  position: absolute;
+  left: 6.4%;
+  right: 6.4%;
+  top: 18.7%;
+  bottom: 5.3%;
+  width: 87.2%;
+  height: 76%;
+  border-radius: 4px;
+  background: #10151d;
+  box-shadow: inset 0 0 0 1px #2a3444;
+}
+
+.stage-idle {
+  position: absolute;
+  inset: 18.7% 6.4% 5.3%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+  border-radius: 4px;
+  background: #10151dee;
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+/* ──────────────────────────────────────────────────────────── progresso */
+
+.progress-block { width: min(430px, 100%); flex: 0 0 auto; }
+
+.progress-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+#phase-label { color: var(--text-dim); }
+#progress-pct {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.progress-track {
+  height: 4px;
+  background: #1b2430;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  border-radius: 3px;
+  transition: width 0.2s ease-out;
+}
+
+.progress-detail {
+  margin: 7px 0 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  min-height: 17px;
+}
+
+/* ─────────────────────────────────────────────────────────────── legenda */
+
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 15px;
+  width: min(470px, 100%);
+  flex: 0 0 auto;
+}
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.legend .swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.legend .count {
+  color: var(--text-faint);
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ────────────────────────────────────────────────────────── diagnóstico */
+
+.assurance {
+  white-space: nowrap;
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  flex: 0 0 auto;
+}
+.assurance.high     { background: rgba(45,212,167,.14); color: var(--ok); }
+.assurance.moderate { background: rgba(251,191,36,.14); color: var(--warn); }
+.assurance.low      { background: rgba(249,115,22,.14); color: #fb923c; }
+.assurance.none     { background: rgba(239,68,68,.16);  color: var(--danger); }
+
+.scenario {
+  margin: 0 0 8px;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.statement {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+
+.details {
+  margin: 0 0 15px;
+  padding-left: 17px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.details li { margin-bottom: 4px; }
+
+.counts { width: 100%; border-collapse: collapse; font-size: 12px; }
+.counts td { padding: 4px 0; border-bottom: 1px solid var(--border-soft); }
+.counts td:first-child { color: var(--text-dim); }
+.counts td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.counts .swatch {
+  display: inline-block;
+  width: 9px; height: 9px;
+  border-radius: 2px;
+  margin-right: 7px;
+  vertical-align: -1px;
+}
+
+/* ───────────────────────────────────────────────────────────── planos */
+
+.plan-list { margin: 14px 0; display: flex; flex-direction: column; gap: 9px; }
+
+/* Tightened so the four layouts reach the fold at the window's own height.
+   The decision is which row to pick, and a row that has to be scrolled to is
+   a row that does not get compared. */
+.plan {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: var(--panel-raised);
+}
+.plan:hover { border-color: #34445a; }
+.plan.selected { border-color: var(--accent); background: rgba(56,189,248,.06); }
+
+.plan-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.plan-name { font-size: 12.5px; font-weight: 600; }
+.plan-size {
+  font-size: 13px;
+  color: var(--ok);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.plan-note { font-size: 11px; color: var(--text-faint); margin-bottom: 8px; }
+
+/* Only the selected layout expands. The decision is which row to pick, so the
+   rows are what stays on screen; the detail belongs to the one being chosen. */
+.plan-cost {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.plan-body { display: none; margin-top: 10px; }
+.plan.selected .plan-body { display: block; }
+.plan { cursor: pointer; }
+.plan:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.plan.selected .plan-cost { color: var(--text-dim); }
+.plan-sacrificed { margin-bottom: 0; }
+
+/* Proportional bar showing where each partition falls on the card. */
+.plan-bar {
+  position: relative;
+  height: 15px;
+  border-radius: 3px;
+  background: var(--st-untested);
+  overflow: hidden;
+  margin-bottom: 7px;
+}
+.plan-seg { position: absolute; top: 0; height: 100%; }
+.plan-seg.data { background: var(--st-good); }
+.plan-seg.quarantine {
+  background: repeating-linear-gradient(
+    45deg, var(--st-aliased), var(--st-aliased) 3px,
+    #7c3aed 3px, #7c3aed 6px
+  );
+}
+
+.plan-parts { font-size: 11px; color: var(--text-faint); }
+.plan-parts div { display: flex; justify-content: space-between; padding: 1.5px 0; }
+
+/* ───────────────────────────────────────────────────────────── modal */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 12, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(3px);
+}
+
+.modal-box {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  width: min(490px, calc(100vw - 40px));
+  max-height: calc(100vh - 60px);
+  overflow-y: auto;
+  box-shadow: 0 22px 60px rgba(0,0,0,.6);
+}
+
+.modal-box h3 { margin: 0 0 13px; font-size: 15px; }
+
+.modal-body {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.modal-body .warn-list {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--warn);
+  background: rgba(251,191,36,.06);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.modal-body ul { margin: 6px 0 0; padding-left: 17px; }
+.modal-body .destructive {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+#modal-expected {
+  display: block;
+  margin-top: 4px;
+  color: var(--accent);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12.5px;
+  user-select: all;
+}
+
+.modal-error {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--danger);
+  min-height: 15px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 6px;
+}
+
+/* Step log shown after a layout is applied. */
+.steps {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.65;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.steps li { margin-bottom: 3px; }
+
+/* ───────────────────────────────────────────────────────────── toast */
+
+.toast {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 11px 19px;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  z-index: 200;
+  max-width: 70vw;
+}
+.toast.error { border-color: #5b2626; color: #fca5a5; }
+.toast.ok    { border-color: #1d5a4a; color: #6ee7b7; }
+
+.hidden { display: none !important; }
+
+/* ────────────────────────────────────────────────────────── scrollbars */
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a3543; border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: #364559; }
+
+@media (max-width: 1120px) {
+  .layout { grid-template-columns: 270px 1fr 300px; }
+}
+
+
+/* ─────────────────────────────────────────── falha persistente e rodapé */
+
+/* Unlike the toast, this does not fade on its own: an error that vanishes
+   before being read is an error that was never reported. */
+.failure {
+  position: fixed;
+  left: 50%;
+  bottom: 46px;
+  transform: translateX(-50%);
+  max-width: min(720px, 88vw);
+  padding: 12px 17px;
+  background: #2a1517;
+  border: 1px solid #6b2b2b;
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: #fca5a5;
+  font-size: 12.5px;
+  line-height: 1.55;
+  box-shadow: 0 12px 34px rgba(0,0,0,.55);
+  z-index: 150;
+}
+
+/* The language control.
+ *
+ * A bare <select> dropped into the top bar read as a stray form field: the
+ * platform's own chrome, its own metrics, nothing in common with the button
+ * beside it. So the platform control is stripped and the frame drawn here —
+ * same height, same border, same hover as .btn-ghost — and the globe says what
+ * it is without spending a word on a label. */
+.lang-pick {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s, background 0.15s;
+}
+.lang-pick:hover { border-color: #34445a; background: #1f2937; }
+.lang-pick:focus-within { border-color: var(--accent); }
+
+.lang-pick select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: auto;
+  min-width: 124px;
+  /* Room on the left for the globe, on the right for the caret. */
+  padding: 9px 26px 9px 30px;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+/* The frame owns the focus ring; a second one inside it would double up. */
+.lang-pick select:focus { border-color: transparent; }
+/* The popup is drawn by the platform, so it needs its colours stated. */
+.lang-pick select option { background: var(--panel-raised); color: var(--text); }
+
+.lang-icon,
+.lang-caret {
+  position: absolute;
+  fill: none;
+  stroke: var(--text-faint);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+  transition: stroke 0.15s;
+}
+.lang-icon {
+  left: 9px;
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.15;
+}
+.lang-caret {
+  right: 10px;
+  width: 9px;
+  height: 6px;
+  stroke-width: 1.7;
+}
+.lang-pick:hover .lang-icon,
+.lang-pick:focus-within .lang-icon { stroke: var(--accent); }
+.lang-pick:hover .lang-caret { stroke: var(--text); }
+
+.statusbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  border-top: 1px solid var(--border-soft);
+  background: #10161e;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+/* Pushes the attribution to the far end, leaving the diagnostic path where it
+   has always been. */
+.statusbar-gap { flex: 1 1 auto; }
+
+/* Looks like a link because it behaves like one; it is a button because an
+   anchor would navigate this window away from the program.
+ *
+ * The weight is on the name. "by" is scaffolding and stays quiet; the handle
+ * is the thing being pointed at, so it takes the accent, the bold and an extra
+ * half point of size — enough to catch the eye in a 11px status bar without
+ * shouting at the diagnostic path across from it. */
+.author-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 0;
+  padding: 3px 5px;
+  margin-right: -5px;
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.author-by { color: var(--text-faint); }
+.author-link strong {
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: underline;
+  text-decoration-color: var(--accent-dim);
+  text-underline-offset: 3px;
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+.author-out {
+  width: 9px;
+  height: 9px;
+  fill: none;
+  stroke: var(--accent-dim);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.15s, transform 0.15s;
+}
+.author-link:hover { background: rgba(86, 182, 255, 0.1); }
+.author-link:hover strong { color: #7cc9ff; text-decoration-color: #7cc9ff; }
+.author-link:hover .author-out { stroke: #7cc9ff; transform: translate(1px, -1px); }
+.author-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* The diagnostic path. It opens the file, so it is a link — but a quiet one:
+   it is a reference, not an invitation, and the attribution at the other end
+   of the bar is the only thing in here allowed to catch the eye. The underline
+   waits for the hover; `user-select: all` stays, because copying this into a
+   support message is most of what anyone does with it. */
+.log-path {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  user-select: all;
+  cursor: pointer;
+  text-align: left;
+  /* Dotted at rest, solid on hover. A link nobody discovers is not a link,
+     and an invisible affordance was the wrong reading of "quiet": the dots
+     say it is interactive without competing with the name at the other end. */
+  text-decoration: underline dotted;
+  text-decoration-color: #3a4a5f;
+  text-underline-offset: 3px;
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+.log-path:hover {
+  color: var(--accent);
+  text-decoration: underline solid;
+  text-decoration-color: var(--accent);
+}
+.log-path:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+
+/* ──────────────────────────────────────────────── infeasibility verdict */
+
+/* When a card cannot be salvaged, the number comes before the prose: a large
+   percentage communicates at a glance what a paragraph does not. */
+/* ── verdict ──────────────────────────────────────────────────────────────
+   Approved and condemned are an adversarial pair: one number is only
+   meaningful against the other. They read as two ends of one bar instead of
+   two separate tiles, and the usable figure leads because it is the one that
+   decides what happens next. */
+.verdict {
+  padding: 14px 15px 13px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--panel-raised);
+  border: 1px solid var(--border-soft);
+}
+.verdict-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+.verdict-usable { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.verdict-figure {
+  white-space: nowrap;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ok);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+.verdict-caption { font-size: 12px; color: var(--text-dim); }
+
+.verdict-split {
+  display: flex;
+  height: 7px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--st-untested);
+}
+.verdict-seg { height: 100%; transition: width 240ms ease; }
+.verdict-seg.good { background: var(--ok); }
+/* Any approved area at all stays visible: a hairline of green is the difference
+   between "nothing survived" and "almost nothing survived", and the exact
+   figure is stated above. */
+.verdict-seg.good:not([style*="width: 0%"]) { min-width: 3px; }
+.verdict-seg.bad  { background: var(--danger); }
+@media (prefers-reduced-motion: reduce) { .verdict-seg { transition: none; } }
+
+.verdict-legend {
+  margin: 7px 0 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.verdict .scenario { margin-top: 13px; }
+.statement-dim { color: var(--text-faint); }
+
+/* ── evidence ─────────────────────────────────────────────────────────────
+   Real and necessary, but reference material: it justifies the verdict rather
+   than driving the next action, so it starts closed. */
+.evidence {
+  margin-bottom: 4px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+.evidence > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-dim);
+  list-style: none;
+  border-radius: var(--radius-sm);
+}
+.evidence > summary::-webkit-details-marker { display: none; }
+.evidence > summary::before {
+  content: "▸";
+  margin-right: 2px;
+  color: var(--text-faint);
+  transition: transform 160ms ease;
+}
+.evidence[open] > summary::before { transform: rotate(90deg); }
+.evidence > summary:hover { color: var(--text); }
+.evidence > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.evidence-count { color: var(--text-faint); font-size: 11px; }
+.evidence > *:not(summary) { padding: 0 12px; }
+.evidence > *:last-child { padding-bottom: 10px; }
+@media (prefers-reduced-motion: reduce) {
+  .evidence > summary::before { transition: none; }
+}
+
+.counts .num {
+  text-align: right;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.verdict-bad {
+  padding: 13px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.08);
+  border-left: 3px solid var(--danger);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.verdict-bad strong { color: #fca5a5; display: block; margin-bottom: 6px; }
+.verdict-bad p { margin: 6px 0 0; color: var(--text-dim); }
+
+
+/* ─────────────────────────────────────────── faixa candidata */
+
+/* Area that neither failed nor was verified. Neither green nor red: it is an
+   invitation to investigate, and should look like one. */
+.candidate {
+  margin-top: 14px;
+  padding: 12px 13px;
+  border-radius: var(--radius-sm);
+  background: rgba(56, 189, 248, 0.07);
+  border-left: 3px solid var(--accent);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.candidate strong { display: block; margin-bottom: 6px; color: #7dd3fc; }
+.candidate p { margin: 6px 0 0; color: var(--text-dim); }
+.candidate button { margin-top: 11px; width: 100%; }
+
+.details em { font-style: normal; color: var(--text); }
+
+/* ══════════════════════════════════════════════ graduated address scale ══ */
+
+/* The interface's signature element, and the one place worth spending
+   ornament — because here it is information. A heatmap without a scale says
+   "there is a defect"; with one, it says "the defect starts at 15.7 GB". */
+
+.card-stage {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+}
+
+.address-scale {
+  position: relative;
+  width: 58px;
+  align-self: stretch;
+  flex: 0 0 auto;
+}
+
+/* The ruler spans only the stretch that represents addresses. The gold
+   contacts occupy the top of the shell and correspond to no sector, so the line
+   starts where the cell grid starts — 18.7% — and ends where it ends. */
+.address-scale::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 18.7%;
+  height: 76%;
+  border-right: 1px solid var(--border);
+}
+
+.address-scale .tick {
+  position: absolute;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  transform: translateY(-50%);
+}
+
+.address-scale .tick::after {
+  content: "";
+  width: 7px;
+  height: 1px;
+  background: var(--border);
+}
+
+.address-scale .tick-end::after {
+  width: 11px;
+  background: var(--text-faint);
+}
+
+.tick-label {
+  font-family: var(--font-data);
+  font-size: 9.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.address-scale .tick-end .tick-label { color: var(--text-dim); }
+
+/* ══════════════════════════════════════════════════ foco e acessibilidade ══ */
+
+/* Visible focus ring on everything reachable by keyboard. Removing it is the
+   most common shortcut to making an interface unusable without a mouse. */
+:where(button, select, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.btn { cursor: pointer; }
+.btn:disabled { cursor: not-allowed; }
+
+/* Touch and click targets with a comfortable minimum height. */
+.btn, select, input[type="text"] { min-height: 34px; }
+
+/* Anyone asking for reduced motion gets the final state, not the transition. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .progress-fill { transition: none; }
+}
+
+/* On narrow screens the three-column panel stacks rather than squeezes. */
+@media (max-width: 980px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    overflow-y: auto;
+  }
+  .stage { min-height: 62vh; }
+  body { overflow: auto; }
+}
+
+/* Each plan states what it costs, not only what it yields. Without the note the
+   comparison collapses to whichever number is biggest, and the option that
+   gives up the guard band is always the biggest number. */
+.plan-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* ── refusal ──────────────────────────────────────────────────────────────
+   Replaces the layout chooser rather than appearing under it: once the answer
+   is "this card cannot be partitioned", a filesystem selector has nothing left
+   to select for, and leaving it there forced a scroll past controls that no
+   longer did anything. */
+.refusal {
+  padding: 13px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.07);
+  border-left: 3px solid var(--danger);
+}
+.refusal strong { display: block; margin-bottom: 7px; font-size: 13px; }
+.refusal p { margin: 0 0 9px; font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+
+/* The figures are the explanation. A definition list keeps each requirement
+   beside the measurement it failed against, which is what makes "94 MB
+   approved" and "cannot be partitioned" stop contradicting each other. */
+.refusal-figures {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 12px;
+  margin: 0 0 10px;
+  font-size: 11.5px;
+}
+.refusal-figures dt { color: var(--text-faint); }
+.refusal-figures dd {
+  margin: 0;
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.refusal-why { margin-bottom: 0 !important; color: var(--text-faint) !important; }
+
+
+/* ── version badge ────────────────────────────────────────────────────────
+   Beside the wordmark, not below it: the first thing asked of any bug report
+   is which build it came from, and this puts the answer in every screenshot.
+   Raised on its own tinted chip so it reads as metadata about the name rather
+   than part of it. */
+.version-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: rgba(56, 189, 248, 0.13);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  color: var(--accent);
+  font-family: var(--font-data);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  vertical-align: 3px;
+  white-space: nowrap;
+}

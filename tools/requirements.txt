@@ -1,0 +1,2 @@
+# Only the icon generator needs Python. Nothing at runtime does.
+pillow>=10.0

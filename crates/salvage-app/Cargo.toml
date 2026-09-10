@@ -1,0 +1,16 @@
+[package]
+name = "salvage-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Use cases, ports and safety guards. No operating-system dependency."
+
+[dependencies]
+salvage-core = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"

@@ -1,0 +1,11 @@
+# Build output.
+/target
+/dist
+
+# Raw card images and exported sector maps: large, and they can carry whatever
+# was on somebody's card.
+*.img
+*.salvage.json
+
+# assets/ holds the icon artwork and docs/ the README images. Both are the
+# source the build renders from, so both are tracked.

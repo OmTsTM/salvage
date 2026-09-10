@@ -1,0 +1,15 @@
+[package]
+name = "salvage-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Pure domain: geometry, sector map, diagnosis, partition planning and FAT32 image generation. No I/O."
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"

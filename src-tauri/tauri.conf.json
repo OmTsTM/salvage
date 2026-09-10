@@ -1,0 +1,72 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Salvage",
+  "identifier": "br.matteus.salvage",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "splash",
+        "url": "splash.html",
+        "title": "Salvage",
+        "width": 440,
+        "height": 272,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "decorations": false,
+        "center": true,
+        "alwaysOnTop": true
+      },
+      {
+        "title": "Salvage",
+        "width": 1240,
+        "height": 900,
+        "minWidth": 1020,
+        "minHeight": 720,
+        "resizable": true,
+        "label": "main",
+        "url": "index.html",
+        "center": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    },
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "publisher": "Matteus",
+    "copyright": "Copyright (c) 2026 Matteus. MIT licensed.",
+    "category": "Utility",
+    "shortDescription": "Diagnoses a failing microSD and reclaims the space that still works.",
+    "longDescription": "Salvage inspects flash media sector by sector, determines why it fails, and fences the defective regions into partitions Windows will not mount, leaving a visible partition backed only by area that was verified byte for byte. Requires Administrator privileges for raw disk access.",
+    "licenseFile": "../LICENSE",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller"
+      },
+      "nsis": {
+        "installMode": "perMachine",
+        "languages": [
+          "PortugueseBR",
+          "English"
+        ],
+        "displayLanguageSelector": true
+      }
+    }
+  }
+}

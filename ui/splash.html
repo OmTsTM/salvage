@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Salvage</title>
+
+  <!-- Styles live here rather than in style.css: this window is on screen
+       while the webview is still warming up, and a second stylesheet request
+       is one more thing between the user and the first painted frame.
+
+       The only script is the shared dictionary and one call into it. Neither
+       touches a Tauri API, which is why the splash is still not listed in the
+       capability file: reading localStorage and setting text needs no
+       permission at all. -->
+  <style>
+    :root {
+      --bg:      #0a0d13;
+      --panel:   #111621;
+      --border:  #263244;
+      --text:    #eef3f8;
+      --dim:     #a7b5c6;
+      --faint:   #7b8a9c;
+      --accent:  #56b6ff;
+      --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    body {
+      background: radial-gradient(ellipse at 50% 26%, #161f2b 0%, var(--bg) 78%);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      /* The window carries no decoration, so the frame is drawn here: without
+         it the splash bleeds into whatever sits behind it on a dark desktop. */
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+      padding: 26px 34px;
+      -webkit-font-smoothing: antialiased;
+      /* Nothing here is selectable or draggable: it is a picture, briefly. */
+      user-select: none;
+      cursor: default;
+    }
+
+    /* The same file the taskbar, the installer and the main window use, so the
+       mark on this screen can never drift from the one on the next. */
+    .mark {
+      width: 62px;
+      height: 62px;
+      border-radius: 13px;
+      display: block;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    /* Matches the badge beside the wordmark inside the program, so the same
+       number is presented the same way in both places. */
+    .version-badge {
+      display: inline-block;
+      margin-left: 7px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: rgba(56, 189, 248, 0.13);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      color: #38bdf8;
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      line-height: 1.5;
+      vertical-align: 3px;
+      white-space: nowrap;
+    }
+
+    .sub {
+      margin: -9px 0 0;
+      font-size: 11.5px;
+      color: var(--faint);
+      text-align: center;
+    }
+
+    /* The track is drawn light enough to be an element on its own. At
+       --panel it vanished into the background, so whenever the highlight was
+       at either end there was nothing on screen at all — the bar read as
+       absent rather than as waiting. */
+    .track {
+      width: 232px;
+      height: 3px;
+      background: #1e2836;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    /* Indeterminate on purpose. A bar creeping toward a percentage would be
+       inventing a figure: nothing here knows how long the webview takes to
+       start or how many disks the machine will answer for. */
+    .track::after {
+      content: "";
+      display: block;
+      height: 100%;
+      width: 46%;
+      background: linear-gradient(90deg, transparent, var(--accent) 45% 55%, transparent);
+      animation: sweep 1.25s ease-in-out infinite;
+    }
+
+    @keyframes sweep {
+      from { transform: translateX(-100%); }
+      to   { transform: translateX(300%); }
+    }
+
+    /* A sweeping bar is motion nobody asked for. Where the system says so, it
+       becomes a quiet steady line that still reads as "working". */
+    @media (prefers-reduced-motion: reduce) {
+      .track::after {
+        width: 100%;
+        background: #1d5b87;
+        animation: none;
+      }
+    }
+
+    .status {
+      margin: 0;
+      font-size: 11.5px;
+      color: var(--dim);
+    }
+  </style>
+</head>
+<body>
+
+  <img class="mark" src="brand.png" alt="" width="62" height="62" />
+
+  <h1>
+    Salvage
+    <!-- Filled by splash-boot.js, and left empty if the version cannot be
+         read: a missing badge costs nothing, a wrong one sends a bug report
+         after the wrong build. -->
+    <span id="app-version" class="version-badge" hidden></span>
+  </h1>
+  <p class="sub" data-i18n="app.tagline"></p>
+
+  <div class="track" role="progressbar" data-i18n-aria="splash.loading"></div>
+  <p class="status" data-i18n="splash.loading"></p>
+
+  <script src="i18n.js"></script>
+  <script src="splash-boot.js"></script>
+
+</body>
+</html>
