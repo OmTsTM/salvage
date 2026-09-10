@@ -15,6 +15,9 @@
          mostly dead, and the little that survived.
      Palette: background #0b1018, green #34d399, red #f43f5e, gold #d8b45e,
      cyan accent #38bdf8.
+
+     docs/README.md carries the generation prompt, written for the app icon to
+     be supplied as input so the lion matches the taskbar exactly.
      ───────────────────────────────────────────────────────────────────────── -->
 
 <h1 align="center">Salvage</h1>
@@ -54,6 +57,9 @@ visible partition backed only by area that was verified byte for byte.
      it, the throughput and remaining time under the progress bar, and the
      verdict panel on the right. That single frame explains the program better
      than the three paragraphs above it.
+
+     Capture instructions, and three further screenshots worth adding once this
+     one exists, are in docs/README.md.
      ───────────────────────────────────────────────────────────────────────── -->
 
 ## Contents
