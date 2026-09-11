@@ -32,6 +32,15 @@ jobs:
       - name: Window scripts
         run: Get-ChildItem ui -Filter *.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE -ne 0) { exit 1 } }
 
+      # A step the backend can emit with no wording in the window reaches the
+      # user as its own identifier, and nothing fails. 0.6.0 shipped exactly
+      # that. The check spans Rust and JavaScript, so neither compiler sees it.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Interface strings
+        run: python tools/check_strings.py
+
       - name: Formatting
         run: cargo fmt --all -- --check
 

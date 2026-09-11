@@ -86,6 +86,15 @@ try {
             if ($LASTEXITCODE -ne 0) { throw "ui/$($script.Name) does not parse" }
         }
 
+        # A step the backend can emit with no wording in the window reaches
+        # the user as its own identifier, and nothing fails. 0.6.0 shipped
+        # exactly that: releasing a card reported `table_restored`. The
+        # mismatch lives between Rust and JavaScript, so neither compiler
+        # can see it.
+        Step 'Interface strings'
+        python tools/check_strings.py
+        if ($LASTEXITCODE -ne 0) { throw 'the window is missing wording for something the backend can say' }
+
         Step 'Formatting'
         cargo fmt --all -- --check
         if ($LASTEXITCODE -ne 0) { throw 'cargo fmt reported differences' }

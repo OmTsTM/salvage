@@ -170,6 +170,13 @@ function warningMessage(w) {
   }
 }
 
+/* Filesystems as they are written on the box, not as they are spelled in the
+ * enum. "ex_fat" reached the user once, in a list of things that had just been
+ * done to their card, which is a poor place to leak an identifier. */
+function fsName(kind) {
+  return { ex_fat: "exFAT", fat32: "FAT32" }[kind] || kind;
+}
+
 /* Description of each step performed while applying a layout. */
 function stepMessage(s) {
   switch (s.step) {
@@ -188,6 +195,8 @@ function stepMessage(s) {
       });
     case "partition_head_wiped":
       return t("step.partition_head_wiped", { label: s.label });
+    case "table_restored":
+      return t(s.from_card ? "step.table_restored_card" : "step.table_restored_full");
     case "table_written":
       return t("step.table_written");
     case "system_notified":
@@ -195,7 +204,7 @@ function stepMessage(s) {
     case "volume_mounted":
       return t("step.volume_mounted", { letter: s.letter });
     case "formatted":
-      return t("step.formatted", { letter: s.letter, filesystem: s.filesystem });
+      return t("step.formatted", { letter: s.letter, filesystem: fsName(s.filesystem) });
     case "cluster_map_written":
       return t("step.cluster_map_written", { n: formatInt(s.withheld_clusters) });
     case "mount_timed_out":

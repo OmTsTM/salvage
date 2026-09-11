@@ -214,6 +214,10 @@ const I18N = (() => {
       "remembered.use": "Usar o resultado guardado",
       "remembered.adopted": "Resultado guardado adotado. Aplicar um layout ainda pede nova inspeção.",
       "remembered.unknownAge": "em data desconhecida",
+      "step.table_restored_card":
+        "Tabela de partições original do cartão restaurada.",
+      "step.table_restored_full":
+        "Nenhuma tabela original guardada: o cartão recebeu uma partição única cobrindo toda a capacidade.",
       "release.button": "Liberar o cartão",
       "release.confirmTitle": "Confirmar liberação do cartão",
       "release.warning":
@@ -578,6 +582,10 @@ const I18N = (() => {
       "remembered.use": "Use the stored result",
       "remembered.adopted": "Stored result adopted. Applying a layout still needs a fresh inspection.",
       "remembered.unknownAge": "at an unknown date",
+      "step.table_restored_card":
+        "The card's original partition table was restored.",
+      "step.table_restored_full":
+        "No original table was kept: the card was given a single partition spanning its full capacity.",
       "release.button": "Release the card",
       "release.confirmTitle": "Confirm releasing the card",
       "release.warning":
@@ -948,6 +956,10 @@ const I18N = (() => {
       "remembered.use": "Usar el resultado guardado",
       "remembered.adopted": "Resultado guardado adoptado. Aplicar un diseño aún requiere una inspección nueva.",
       "remembered.unknownAge": "en fecha desconocida",
+      "step.table_restored_card":
+        "Se restauró la tabla de particiones original de la tarjeta.",
+      "step.table_restored_full":
+        "No se guardó ninguna tabla original: la tarjeta recibió una partición única que abarca toda su capacidad.",
       "release.button": "Liberar la tarjeta",
       "release.confirmTitle": "Confirmar la liberación de la tarjeta",
       "release.warning":
@@ -1295,6 +1307,8 @@ const I18N = (() => {
       "remembered.use": "使用已保存的结果",
       "remembered.adopted": "已采用保存的结果。应用布局仍需重新检测。",
       "remembered.unknownAge": "日期未知",
+      "step.table_restored_card": "已恢复这张卡原本的分区表。",
+      "step.table_restored_full": "未保存原始分区表：已为这张卡创建一个覆盖全部容量的单一分区。",
       "release.button": "释放这张卡",
       "release.confirmTitle": "确认释放这张卡",
       "release.warning": "这将重写 {name} 的分区表，并恢复其全部容量。",
