@@ -6,7 +6,7 @@ place it belongs, in an HTML comment inside `README.md` — search for `BANNER`,
 
 | File | Size | How to produce it |
 |---|---|---|
-| `banner.png` | 1280×420 | Image generator, with the app icon as input |
+| `banner.png` | 1280×420 | `python tools/gen_banner.py` |
 | `screenshot-scan.png` | ~1240×900 | Screen capture — the hero image |
 | `screenshot-verdict.png` | ~420×900 | Screen capture — the right panel alone |
 | `screenshot-consent.png` | ~700×500 | Screen capture — the confirmation dialog |
@@ -33,87 +33,29 @@ So the images sit with the interface rather than beside it.
 
 ---
 
-# banner.png — generated, from the icon
+# banner.png — composited, not generated
 
-`assets/icon-source.png` is the input. The lion must come out **identical** to
-the one on the taskbar; only the space around it is generated. A model asked to
-draw a lion from a description will draw a different lion, and two lions is
-worse than none.
+Produced by [`tools/gen_banner.py`](../tools/gen_banner.py):
 
-## The reliable way: outpainting
+```powershell
+python tools/gen_banner.py
+```
 
-Generative expand preserves the pixels you give it and invents only the new
-canvas, which is exactly the split needed here.
+Composited rather than generated, for three reasons an image model cannot
+address. The lion is `assets/icon-source.png` itself, so the banner and the
+taskbar show the same mark rather than two similar ones. The colours are the
+interface's own constants. The wordmark is drawn by a font, so it is spelled
+correctly.
 
-1. Make a 1280×420 canvas filled with `#0b1018`.
-2. Place `assets/icon-source.png` on the left, scaled to about 300 px tall,
-   vertically centred, with roughly 60 px of margin on the left.
-3. Select the empty area to its right and generative-expand with the prompt
-   below.
+The sector field is the argument rather than decoration: `SURVIVOR_RATE` in the
+script sets the proportion of intact cells, at a little above the 0.075% the
+card this program was built against actually returned. Regenerating it cannot
+quietly turn into a prettier, more balanced picture than the truth.
 
-Photoshop's Generative Fill, Krea, Flux Fill and Firefly all do this. It is
-slower than one generation and it is the only method that cannot redraw the
-lion.
-
-**Prompt for the expanded area**
-
-> Dark navy background, near black, continuing seamlessly. On the right side, an
-> abstract data grid: hundreds of small rounded squares in a dense uniform
-> matrix, most of them deep crimson red, a scattered handful glowing emerald
-> green. A single thin cyan horizontal line sweeps across the grid with a soft
-> glow, like a scanner. The grid fades out toward the right edge. Flat vector
-> style, high contrast, clean, uncluttered. The centre stays empty dark
-> background.
-
-## The one-shot way: reference image
-
-Faster, and the lion drifts. Usable if you check the result against the icon
-rather than against your memory of it.
-
-**Prompt**
-
-> Using the provided image as an exact, unmodified element: place this lion mark
-> on the left third of a wide 32:10 banner, preserving its colours, shading and
-> proportions exactly. Do not redraw, restyle or reinterpret it.
->
-> Extend the canvas around it with a very dark navy background, near black, with
-> a soft vignette. On the right third, add an abstract data grid: hundreds of
-> small rounded squares in a dense uniform matrix, most deep crimson red, a
-> scattered handful glowing emerald green, with one thin cyan horizontal scan
-> line crossing it with a soft glow. The grid fades out toward the right edge.
->
-> Leave the middle third as empty dark background.
->
-> Flat vector style, modern software branding, high contrast, dark UI aesthetic.
-
-**Negative prompt**
-
-> text, letters, words, typography, watermark, signature, photorealistic, 3d
-> render, glossy reflections, busy background, extra animals, second lion,
-> redrawn logo, cluttered
-
-**Parameters**
-
-| Tool | Flags |
-|---|---|
-| Midjourney | image prompt + `--ar 32:10 --iw 2 --style raw` — `--iw 2` weights the reference heavily, which is the point |
-| Gemini / Nano Banana | attach the icon and phrase it as an edit: "keep this lion exactly as it is and extend the image around it" |
-| Flux Kontext | attach the icon; it is built for edit-style instructions and holds the input better than most |
-| DALL·E | weakest at preserving an input; use outpainting instead |
-
-## Whichever route
-
-- The middle third is left empty on purpose. Put `Salvage` there afterwards in a
-  semibold sans (Inter, Segoe UI Variable) in near-white, with *"Diagnose a
-  failing microSD and reclaim the space that still works"* beneath it in
-  `#a7b5c6`. Never ask the model for the text.
-- **The red-to-green ratio is the argument**, not decoration: the product is a
-  card that is mostly dead and the little that survived. A balanced or mostly
-  green grid is wrong however well it renders.
-- Compare the output against `assets/icon-source.png` side by side at 100%. Mane
-  shape and the angle of the card in the jaws are where drift shows first.
-
----
+To change it, edit the script and re-run. To replace it with something generated
+instead, the composition to match is: mark on the left, wordmark and tagline in
+the middle, the red-and-green field bleeding off the right edge, one cyan sweep
+across it.
 
 # Screenshots — captured, never generated
 

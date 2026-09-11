@@ -1299,7 +1299,13 @@ const I18N = (() => {
   /* Locale used for number formatting, which is not always the key. */
   const LOCALE = { "pt-BR": "pt-BR", en: "en-US", es: "es-ES", zh: "zh-CN" };
 
-  const FALLBACK = "pt-BR";
+  /* The language to fall back on, in both senses: what a system speaking none of
+   * the four gets, and which dictionary supplies a key another one is missing.
+   *
+   * English rather than the author's own language. A Japanese or German user is
+   * far more likely to read English than Portuguese, and the same reasoning
+   * applies to a key that has not been translated yet. */
+  const FALLBACK = "en";
   const STORAGE_KEY = "salvage.lang";
 
   /* The choice survives restarts, and it has to survive its own storage being
@@ -1315,6 +1321,13 @@ const I18N = (() => {
     }
   }
 
+  /* The system's language, when the window speaks it.
+   *
+   * `navigator.languages` is the user's ordered preference list, so a machine
+   * set to Japanese first and Spanish second gets Spanish rather than the
+   * fallback — the second choice is still a real choice. Matching is on the
+   * primary subtag, so pt-PT and pt-BR both reach Portuguese, and en-GB,
+   * en-US and plain en all reach English. */
   function fromSystem() {
     const tags = navigator.languages && navigator.languages.length
       ? navigator.languages

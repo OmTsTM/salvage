@@ -1,24 +1,6 @@
-<!-- BANNER
-     ─────────────────────────────────────────────────────────────────────────
-     Generate a 1280×420 image and save it as docs/banner.png, then replace this
-     comment with:
-
-         <p align="center"><img src="docs/banner.png" alt="Salvage" width="100%"></p>
-
-     What it should show, left to right:
-       • The lion mark from assets/icon-source.png, large, on the left third.
-       • The wordmark "Salvage" and, beneath it in smaller type, the line
-         "Diagnose a failing microSD and reclaim the space that still works".
-       • On the right, the sector map: a dense grid of small squares, mostly
-         deep red with a scattering of green, over the dark navy background
-         (#0b1018). That contrast is the product in one image — a card that is
-         mostly dead, and the little that survived.
-     Palette: background #0b1018, green #34d399, red #f43f5e, gold #d8b45e,
-     cyan accent #38bdf8.
-
-     docs/README.md carries the generation prompt, written for the app icon to
-     be supplied as input so the lion matches the taskbar exactly.
-     ───────────────────────────────────────────────────────────────────────── -->
+<p align="center">
+  <img src="docs/banner.png" alt="Salvage" width="100%">
+</p>
 
 <h1 align="center">Salvage</h1>
 
