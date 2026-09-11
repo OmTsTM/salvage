@@ -499,8 +499,11 @@ async function refreshDevices() {
      * the user goes on staring at. */
     const select = $("device-select");
     select.innerHTML = `<option value="">${escapeHtml(t("ui.listFailed"))}</option>`;
+    // The banner alone. Both at once put the same sentence in two boxes that
+    // overlap: the toast sits at 22px from the bottom and the banner at 46px,
+    // and the banner is the right one here — a device list that failed to load
+    // is standing context, not a passing notice.
     showFailure(t(String(e)));
-    toast(t(String(e)), "error");
     return;
   }
 
@@ -1005,7 +1008,7 @@ async function releaseCard() {
     resetResults();
     await refreshDevices();
   } catch (e) {
-    toast(t(String(e)), "error");
+    showFailure(t(String(e)));
   }
 }
 
@@ -1164,7 +1167,7 @@ async function prepareCard() {
     toast(t("prepare.done"), "ok");
     await refreshDevices();
   } catch (e) {
-    toast(t(String(e)), "error");
+    showFailure(t(String(e)));
   }
 }
 
@@ -1336,7 +1339,10 @@ async function applyPlan() {
     $("modal").classList.remove("hidden");
     toast(t("apply.done"), "ok");
   } catch (e) {
-    toast(t(String(e)), "error");
+    // Persisted rather than toasted: see showFailure. This is the path that
+    // refuses a layout built from a record adopted in an earlier session, and
+    // the remedy is to run the inspection — which clears it.
+    showFailure(t(String(e)));
   }
 }
 

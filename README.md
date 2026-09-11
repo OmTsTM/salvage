@@ -219,7 +219,10 @@ prints both costs next to the option rather than only the larger number.
 <p align="center">
   <em>Every layout states what it costs beside what it yields, because the
   option that recovers the most space is also the one that gives up the guard
-  band — and the larger number should not win by default.</em>
+  band — and the larger number should not win by default. The panel above is
+  the running program, driven from a reconstructed sector map: a card that
+  fails this particular way was not on hand, and a screenshot is not a place
+  to imply one was.</em>
 </p>
 
 ### What a result looks like
