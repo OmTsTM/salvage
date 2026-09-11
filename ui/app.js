@@ -636,7 +636,7 @@ function resetResults() {
   $("stage-idle").classList.remove("hidden");
   $("progress-bar").style.width = "0";
   $("progress-pct").textContent = "—";
-  $("phase-label").textContent = "Aguardando";
+  $("phase-label").textContent = t("phase.waiting");
   $("progress-detail").innerHTML = "&nbsp;";
   renderLegend(null, 512);
 }

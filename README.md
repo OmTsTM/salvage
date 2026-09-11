@@ -62,6 +62,17 @@ visible partition backed only by area that was verified byte for byte.
      one exists, are in docs/README.md.
      ───────────────────────────────────────────────────────────────────────── -->
 
+<p align="center">
+  <img src="docs/screenshot-consent.png" alt="The confirmation dialog, with the Confirm button disabled until the device name is typed in full" width="600">
+</p>
+
+<p align="center">
+  <em>Nothing is written until the operator has typed the name of the disk they
+  are about to erase. Consent is a type, obtainable only from the function that
+  evaluates the safety guards — so no code path can reach a write without
+  passing through them.</em>
+</p>
+
 ## Contents
 
 - [Install](#install)
