@@ -291,6 +291,11 @@ size the filesystem is written directly instead, by the same code the spliced
 strategy uses, which has no such limit. Below it the Windows formatter is left
 to do its job.
 
+Measured on a 252.87 GB card: inspected in 1h58 with no defect in 493,895,680
+sectors, then given a single FAT32 volume of 235.45 GiB — 7.4 times the largest
+Windows will create. `chkdsk` audits it as sound, across 7,715,107 allocation
+units, and a 2 GiB file written and read back matches byte for byte.
+
 ### The invariant everything rests on
 
 > No user data may ever land on a sector that was not explicitly approved.
