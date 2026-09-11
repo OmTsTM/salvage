@@ -24,6 +24,14 @@ use crate::sys::{self, Access};
 ///
 /// Erases any lingering superblock so Windows does not recognise a stale
 /// filesystem over the new layout.
+/// Largest FAT32 volume the Windows formatter will create.
+///
+/// `format.com` refuses FAT32 above this, and says so only after being asked.
+/// Past it the filesystem is written here instead, with the same code the
+/// spliced strategy uses — which has no such limit, because it is not
+/// Microsoft's formatter.
+const FORMAT_COM_FAT32_LIMIT: u64 = 32 * 1024 * 1024 * 1024;
+
 /// Bytes written per call while laying down a spliced volume. The table for a
 /// 128 GB card runs to tens of megabytes, and one sector at a time would spend
 /// the whole operation in call overhead.
@@ -362,6 +370,94 @@ pub fn apply_plan(
     Ok(ApplyOutcome { steps, data_volume_letter: Some(letter), table_before: Some(table_before) })
 }
 
+/// Writes one full-capacity partition and formats it.
+///
+/// For a card the inspection found intact. Until this existed the healthy path
+/// was the only one with no way out: a card with defects got a layout and a
+/// formatted volume, while a card with none was left erased, unpartitioned, and
+/// unmounted — the better result leading to the worse state.
+///
+/// It is offered only where nothing was condemned. On a card with defects, one
+/// partition over everything is [`release_card`], which says what it is giving
+/// back and why that is a decision rather than a convenience.
+pub fn prepare_card(
+    device: &DeviceInfo,
+    map: &SectorMap,
+    consent: &DestructiveConsent,
+    filesystem: FileSystem,
+    label: &str,
+) -> Result<ApplyOutcome, ApplyError> {
+    if !consent.matches(device) {
+        return Err(ApplyError::ConsentMismatch);
+    }
+
+    let mut steps = Vec::new();
+    let sector_size = device.geometry.sector_size();
+    let signature = disk_signature_for(device);
+    let new_mbr = MasterBootRecord::single_partition(&device.geometry, filesystem, signature)?;
+
+    let area = new_mbr
+        .used_partitions()
+        .next()
+        .map(|(_, p)| p.range())
+        .ok_or(MbrError::EmptyPartition(0))?;
+
+    let mut dev = RawBlockDevice::open(&device.path, Access::ReadWrite)
+        .map_err(|e| ApplyError::Device(e.to_string()))?;
+
+    let problems = dev.lock_volumes_of_disk(device.index);
+    if problems.is_empty() {
+        steps.push(ApplyStep::VolumesDismounted);
+    } else {
+        steps.extend(problems.into_iter().map(ApplyStep::VolumeWarning));
+    }
+
+    // Kept before it stops existing, so preparing a card is as reversible as
+    // fencing one.
+    let mut first_sector = vec![0u8; sector_size as usize];
+    let table_before =
+        dev.read_at(0, &mut first_sector).ok().map(|()| first_sector[..MBR_SIZE].to_vec());
+
+    // Windows will not make a FAT32 volume this large, so it is made here.
+    let own_filesystem = writes_own_filesystem(filesystem, &area, sector_size);
+    if own_filesystem {
+        steps.push(write_spliced_volume(&mut dev, map, &area, signature, label)?);
+    }
+
+    let mut boot_sector = vec![0u8; sector_size as usize];
+    boot_sector[..MBR_SIZE].copy_from_slice(&new_mbr.to_bytes());
+    dev.write_at(0, &boot_sector)
+        .map_err(|e| ApplyError::Device(format!("failed to write the partition table: {e}")))?;
+    dev.flush().map_err(|e| ApplyError::Device(e.to_string()))?;
+    steps.push(ApplyStep::TableWritten);
+
+    dev.refresh_partition_table().map_err(|e| ApplyError::Device(e.to_string()))?;
+    steps.push(ApplyStep::SystemNotified);
+    drop(dev);
+
+    let mut letter = None;
+    for _ in 0..MOUNT_ATTEMPTS {
+        if let Some(l) = find_data_volume_letter(device.index) {
+            letter = Some(l);
+            break;
+        }
+        std::thread::sleep(MOUNT_RETRY_DELAY);
+    }
+
+    match letter {
+        Some(l) => {
+            steps.push(ApplyStep::VolumeMounted { letter: l });
+            // Formatting a volume this program already wrote would replace it.
+            if !own_filesystem {
+                steps.push(format_volume(l, filesystem, label)?);
+            }
+        }
+        None => steps.push(ApplyStep::MountTimedOut),
+    }
+
+    Ok(ApplyOutcome { steps, data_volume_letter: letter, table_before })
+}
+
 /// Removes this program's layout and gives the card back.
 ///
 /// # What this does and does not undo
@@ -451,6 +547,16 @@ pub fn release_card(
     Ok(ApplyOutcome { steps, data_volume_letter: letter, table_before: None })
 }
 
+/// Whether this program writes the filesystem itself rather than asking Windows.
+///
+/// Only where Windows would refuse. `format.com` is the better-travelled path
+/// for everything it accepts, and the point of the exception is to stop a
+/// legitimate choice from failing, not to replace a working tool.
+fn writes_own_filesystem(filesystem: FileSystem, area: &LbaRange, sector_size: u32) -> bool {
+    filesystem == FileSystem::Fat32
+        && area.len().saturating_mul(sector_size as u64) > FORMAT_COM_FAT32_LIMIT
+}
+
 /// Writes a FAT32 volume whose allocation table withholds every cluster the
 /// scan did not approve.
 ///
@@ -509,6 +615,40 @@ mod tests {
             geometry: DeviceGeometry::new(512, 1_000_000).unwrap(),
             volumes: vec![],
         }
+    }
+
+    /// The boundary this exists for. `format.com` refuses FAT32 above 32 GB,
+    /// and a 64 GB card asked for FAT32 would otherwise fail at the last step,
+    /// after the partition table had already been written.
+    #[test]
+    fn fat32_past_the_formatter_limit_is_written_here_instead() {
+        let sectors_32g = FORMAT_COM_FAT32_LIMIT / 512;
+        let at = LbaRange::from_bounds(0, sectors_32g);
+        let past = LbaRange::from_bounds(0, sectors_32g + 1);
+
+        assert!(!writes_own_filesystem(FileSystem::Fat32, &at, 512), "32 GB is accepted");
+        assert!(writes_own_filesystem(FileSystem::Fat32, &past, 512), "past it is not");
+    }
+
+    /// Windows makes exFAT volumes of any size, so nothing is gained by
+    /// replacing a working path with one of our own.
+    #[test]
+    fn exfat_is_always_left_to_windows() {
+        let huge = LbaRange::from_bounds(0, u32::MAX as u64);
+        assert!(!writes_own_filesystem(FileSystem::ExFat, &huge, 512));
+    }
+
+    /// The limit is a size in bytes, not a sector count: the same number of
+    /// sectors is twice the volume on a 4 KiB card.
+    #[test]
+    fn the_limit_is_measured_in_bytes_rather_than_sectors() {
+        let sectors = (FORMAT_COM_FAT32_LIMIT / 512) - 1;
+        let area = LbaRange::from_bounds(0, sectors);
+        assert!(!writes_own_filesystem(FileSystem::Fat32, &area, 512));
+        assert!(
+            writes_own_filesystem(FileSystem::Fat32, &area, 4096),
+            "the same sectors at 4 KiB are eight times the bytes"
+        );
     }
 
     #[test]

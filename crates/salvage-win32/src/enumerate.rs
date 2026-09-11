@@ -135,8 +135,13 @@ impl WindowsDeviceEnumerator {
         Some(DeviceInfo {
             path,
             index,
+            // Not a translated string, unlike the rest of what the user reads.
+            // The model becomes the device's display name, and the display name
+            // is what a destructive operation asks to be typed back — a name
+            // that changed with the interface language would be a name the
+            // consent no longer matches.
             model: if descriptor.product.is_empty() {
-                "Dispositivo sem identificacao".to_string()
+                "Unidentified device".to_string()
             } else {
                 descriptor.product
             },

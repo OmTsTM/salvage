@@ -755,6 +755,45 @@ mod tests {
         }
     }
 
+    /// The sizes Windows will not format.
+    ///
+    /// `format.com` refuses FAT32 above 32 GB, so past that this is the only
+    /// code that makes the volume — and nothing else would notice if the plan
+    /// stopped being a legal FAT32 up there. Every entry must still address a
+    /// cluster the 28-bit field can name, and the count must stay above the
+    /// floor that separates FAT32 from FAT16.
+    #[test]
+    fn a_volume_larger_than_windows_will_format_is_still_a_legal_fat32() {
+        // 33 GB, 64 GB, 128 GB and 256 GB, in 512-byte sectors.
+        for gigabytes in [33u64, 64, 128, 256] {
+            let sectors = gigabytes * 1024 * 1024 * 1024 / SS as u64;
+            let l = Fat32Layout::plan(sectors, SS, 0)
+                .unwrap_or_else(|e| panic!("{gigabytes} GB was refused: {e}"));
+
+            assert!(
+                l.cluster_count() >= MIN_FAT32_CLUSTERS,
+                "{gigabytes} GB: {} clusters is FAT16 territory",
+                l.cluster_count()
+            );
+            // The entry is 32 bits with the top four reserved, so no cluster
+            // number may reach into them.
+            assert!(
+                (l.cluster_count() as u64 + FIRST_DATA_CLUSTER as u64) < 0x0FFF_FFF7,
+                "{gigabytes} GB: the last cluster number collides with the bad-cluster mark"
+            );
+
+            let entries = l.fat_sectors() as u64 * (SS / 4) as u64;
+            assert!(
+                entries >= l.cluster_count() as u64 + FIRST_DATA_CLUSTER as u64,
+                "{gigabytes} GB: the table cannot address its own clusters"
+            );
+            let consumed = RESERVED_SECTORS as u64
+                + l.fat_sectors() as u64 * NUM_FATS as u64
+                + l.cluster_count() as u64 * l.sectors_per_cluster() as u64;
+            assert!(consumed <= sectors, "{gigabytes} GB: the layout claims {consumed} sectors");
+        }
+    }
+
     #[test]
     fn the_free_count_reported_to_windows_excludes_the_defects() {
         let l = Fat32Layout::plan(SECTORS, SS, 0).unwrap();
@@ -777,7 +816,7 @@ mod tests {
         assert_eq!(&encode_label("SALVAGE"), b"SALVAGE    ");
         assert_eq!(&encode_label("salvage"), b"SALVAGE    ");
         assert_eq!(&encode_label("a b"), b"A_B        ");
-        assert_eq!(&encode_label("MUITO LONGO DEMAIS"), b"MUITO_LONGO");
+        assert_eq!(&encode_label("A VERY LONG LABEL"), b"A_VERY_LONG");
         assert_eq!(&encode_label(""), b"           ");
     }
 

@@ -1219,3 +1219,28 @@ select:disabled { opacity: 0.5; }
    do by accident. */
 .release { margin-top: 12px; }
 .release .btn { width: 100%; }
+
+
+/* ── prepare ──────────────────────────────────────────────────────────────
+   The clean verdict's outcome, shaped like the refusal it sits in place of
+   and coloured against it: same box, same position in the panel, green edge
+   rather than red. A card with no defects has no layout to choose, so what
+   goes here is not a chooser — it is the one remaining step, said plainly. */
+.prepare {
+  padding: 13px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(52, 211, 153, 0.07);
+  border-left: 3px solid var(--ok);
+}
+.prepare strong { display: block; margin-bottom: 7px; font-size: 13px; }
+.prepare p { margin: 0 0 9px; font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+.prepare p:last-child { margin-bottom: 0; }
+
+/* The erasure is the part a user can still act on — the card is not yet
+   written, and anything they wanted off it is already gone. It is set apart
+   rather than left in the paragraph flow, where it read as reassurance. */
+.prepare-erased {
+  color: var(--text-faint) !important;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 9px;
+}

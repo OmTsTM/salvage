@@ -221,8 +221,18 @@
               <option value="fat32" data-i18n="fs.fat32"></option>
             </select>
           </div>
+          <!-- The name the volume carries in Explorer. Eleven characters is the
+               field both filesystems provide, so the limit is theirs. -->
+          <div class="field">
+            <label for="label-input" data-i18n="ui.volumeLabel"></label>
+            <input type="text" id="label-input" maxlength="11" value="SALVAGE"
+                   spellcheck="false" autocomplete="off">
+          </div>
         </div>
         <div id="plan-refusal" class="refusal hidden"></div>
+        <!-- The clean verdict's own outcome. A card with no defects has no
+             layout to choose, and used to end here with nothing offered. -->
+        <div id="plan-prepare" class="prepare hidden"></div>
         <div id="plan-list" class="plan-list" role="radiogroup"
              data-i18n-aria="ui.plansLabel"></div>
       </div>
@@ -231,6 +241,7 @@
            layout to find it. -->
       <div id="plan-actions" class="panel-actions hidden">
         <button id="btn-apply" class="btn btn-primary" data-i18n="ui.applyPlan"></button>
+        <button id="btn-prepare" class="btn btn-primary hidden" data-i18n="prepare.button"></button>
       </div>
     </section>
   </main>

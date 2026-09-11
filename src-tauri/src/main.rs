@@ -335,7 +335,10 @@ impl DeviceView {
             volumes: device
                 .volumes
                 .iter()
-                .map(|v| v.drive_letter.map_or("sem letra".into(), |c| format!("{c}:")))
+                // A key rather than a sentence, like everything else crossing
+                // this boundary: a volume with no letter is the one entry here
+                // that needs wording, and the window owns the four languages.
+                .map(|v| v.drive_letter.map_or("spec.unlettered".into(), |c| format!("{c}:")))
                 .collect(),
             verdict,
             blocks,
@@ -477,6 +480,13 @@ struct Snapshot {
     sector_size: u32,
     capacity_bytes: u64,
     report: Option<ReportView>,
+    /// Whether this map was measured in this session.
+    ///
+    /// A map adopted from a stored record describes the card as it was, and
+    /// every write the window can offer is refused on one. The window needs to
+    /// know before it offers, rather than after the user has typed the device
+    /// name into a confirmation.
+    verified_now: bool,
 }
 
 fn build_snapshot(
@@ -485,6 +495,7 @@ fn build_snapshot(
     report: Option<&HealthReport>,
     scanning: bool,
     view: Option<salvage_core::LbaRange>,
+    verified_now: bool,
 ) -> Snapshot {
     let sector_size = map.geometry().sector_size();
 
@@ -537,6 +548,7 @@ fn build_snapshot(
         sector_size,
         capacity_bytes: view.len() * sector_size as u64,
         report: report.map(|r| ReportView::from(r, sector_size)),
+        verified_now,
     }
 }
 
@@ -653,7 +665,7 @@ impl ScanObserver for WindowObserver {
             self.last_logged_percent = percent;
         }
 
-        let snapshot = build_snapshot(map, Some(progress), None, true, self.view);
+        let snapshot = build_snapshot(map, Some(progress), None, true, self.view, true);
         match self.app.emit("scan:progress", snapshot) {
             Ok(()) => self.emitted += 1,
             // If the event never reaches the window, the interface sits still
@@ -715,6 +727,9 @@ mod err {
     pub const STALE_MAP: &str = "err.stale_map";
     pub const NO_DEVICE: &str = "err.no_device";
     pub const NO_MAP: &str = "err.no_map";
+    /// The card was not wholly proven good, so one volume over all of it is
+    /// the wrong shape. A card with defects has layouts, or has release.
+    pub const NOT_PRISTINE: &str = "err.not_pristine";
     pub const NO_PLAN: &str = "err.no_plan";
     pub const PLAN_REJECTED: &str = "err.plan_rejected";
     pub const NAME_MISMATCH: &str = "err.name_mismatch";
@@ -851,7 +866,7 @@ fn use_remembered(app: AppHandle, state: State<'_, Shared>) -> Result<(), String
 
     log(&format!("adopting the remembered map, age {:?}s", record.age_seconds()));
     let report = diagnose(&record.map, None);
-    let snapshot = build_snapshot(&record.map, None, Some(&report), false, guard.view_span);
+    let snapshot = build_snapshot(&record.map, None, Some(&report), false, guard.view_span, false);
     guard.map = Some(record.map);
     guard.report = Some(report);
     guard.verified_now = false;
@@ -920,6 +935,78 @@ fn release_card(
         guard.baseline = None;
         guard.report = None;
         guard.plans.clear();
+    }
+
+    Ok(ApplyView { steps: outcome.steps, drive_letter: outcome.data_volume_letter, prior: None })
+}
+
+/// Writes one full-capacity volume on a card the inspection found intact.
+///
+/// # Why this exists
+///
+/// The inspection writes a pattern over every sector, so a card leaves it
+/// erased and unpartitioned whatever the verdict. A card with defects then
+/// flows into a layout, which ends with a formatted volume. A card with none
+/// had nowhere to flow: the better result left the user with an unusable card
+/// and no next step. This is that step.
+///
+/// # Why only for a clean verdict
+///
+/// One volume over the whole card is the right shape only when the whole card
+/// is good. Where defects exist, the same operation is [`release_card`] — same
+/// partition table, different claim: it hands back capacity known to be
+/// unreliable, and says so first. Offering it here as "format the card" would
+/// dress that up as a convenience.
+#[tauri::command]
+fn prepare_card(
+    typed_name: String,
+    filesystem: String,
+    label: String,
+    state: State<'_, Shared>,
+) -> Result<ApplyView, String> {
+    let (device, map, consent) = {
+        let guard = state.lock().map_err(|_| err::STATE)?;
+        let device = guard.selected.clone().ok_or(err::NO_DEVICE)?;
+        let map = guard.map.clone().ok_or(err::NO_MAP)?;
+
+        // Same gate as `apply`, for the same reason: a map adopted from an
+        // earlier session says the card was intact then. Writing a volume over
+        // the whole card on that basis would place files everywhere on a claim
+        // no one has checked today.
+        if !guard.verified_now {
+            log("prepare refused: the working map was not verified in this session");
+            return Err(err::STALE_MAP.into());
+        }
+
+        // The window only offers this on a clean verdict; the check is repeated
+        // here because the window is not what makes it safe.
+        let report = guard.report.as_ref().ok_or(err::NO_MAP)?;
+        if report.counts.defective() > 0 || report.counts.untested > 0 {
+            log("prepare refused: the card is not wholly proven good");
+            return Err(err::NOT_PRISTINE.into());
+        }
+
+        let consent = DestructiveConsent::issue(&device, &typed_name, &SafetyPolicy::default())
+            .map_err(|e| {
+                log(&format!("consent refused: {e}"));
+                consent_key(&e).to_string()
+            })?;
+        (device, map, consent)
+    };
+
+    let filesystem = match filesystem.as_str() {
+        "fat32" => FileSystem::Fat32,
+        _ => FileSystem::ExFat,
+    };
+
+    log(&format!("preparing {} as {}", device.path, filesystem.format_name()));
+    let outcome = salvage_win32::prepare_card(&device, &map, &consent, filesystem, &label)
+        .map_err(|e| e.to_string())?;
+
+    // Kept for the same reason fencing keeps it: whatever was on the card
+    // before this program wrote a table is the only way back to it.
+    if let Some(table) = outcome.table_before.as_deref() {
+        remember_table(&device, table);
     }
 
     Ok(ApplyView { steps: outcome.steps, drive_letter: outcome.data_volume_letter, prior: None })
@@ -1029,7 +1116,7 @@ fn start_scan(typed_name: String, app: AppHandle, state: State<'_, Shared>) -> R
                 let mut map = outcome.map;
                 map.withhold_outside(span);
                 let report = diagnose(&map, guard.baseline.as_ref());
-                let snapshot = build_snapshot(&map, None, Some(&report), false, config.range);
+                let snapshot = build_snapshot(&map, None, Some(&report), false, config.range, true);
                 // This pass becomes the next one's baseline, which is what
                 // distinguishes a stable defect from active degradation.
                 guard.baseline = Some(map.clone());
@@ -1297,10 +1384,16 @@ fn apply(
 #[tauri::command]
 fn snapshot(state: State<'_, Shared>) -> Result<Option<Snapshot>, String> {
     let guard = state.lock().map_err(|_| err::STATE)?;
-    Ok(guard
-        .map
-        .as_ref()
-        .map(|m| build_snapshot(m, None, guard.report.as_ref(), guard.scanning, guard.view_span)))
+    Ok(guard.map.as_ref().map(|m| {
+        build_snapshot(
+            m,
+            None,
+            guard.report.as_ref(),
+            guard.scanning,
+            guard.view_span,
+            guard.verified_now,
+        )
+    }))
 }
 
 /// Records a message from the window, so a JavaScript error also lands in the
@@ -1457,6 +1550,7 @@ fn main() {
             list_devices,
             use_remembered,
             release_card,
+            prepare_card,
             select_device,
             start_scan,
             cancel_scan,

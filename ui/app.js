@@ -138,7 +138,7 @@ function blockMessage(b) {
     case "hosts_operating_system":
       return t("block.hosts_operating_system", {
         volumes: b.volumes.length
-          ? b.volumes.join(", ")
+          ? b.volumes.map(t).join(", ")
           : t("block.hosts_operating_system.system"),
       });
     case "internal_bus":
@@ -173,8 +173,13 @@ function warningMessage(w) {
 /* Filesystems as they are written on the box, not as they are spelled in the
  * enum. "ex_fat" reached the user once, in a list of things that had just been
  * done to their card, which is a poor place to leak an identifier. */
+/* The display name of a filesystem, from either spelling of it.
+ *
+ * `ex_fat` is how the backend enum serialises; `exfat` is the value the
+ * selector carries. Both name the same thing, and a confirmation dialog that
+ * said "exfat" would be the only place on screen spelling it that way. */
 function fsName(kind) {
-  return { ex_fat: "exFAT", fat32: "FAT32" }[kind] || kind;
+  return { ex_fat: "exFAT", exfat: "exFAT", fat32: "FAT32" }[kind] || kind;
 }
 
 /* Description of each step performed while applying a layout. */
@@ -249,8 +254,8 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 const state = {
-  rate: null,        // { phase, t0, sectors0 } para estimar o tempo restante
-  watchdog: null,    // detecta varredura que inicia e nao reporta andamento
+  rate: null,        // { phase, t0, sectors0 }, to estimate the time left
+  watchdog: null,    // catches a scan that starts and reports no progress
   devices: [],
   selected: null,
   lastSnapshot: null,
@@ -582,7 +587,10 @@ function renderDeviceDetails(d) {
   $("spec-bus").textContent =
     `${d.bus} · ${d.removable ? t("spec.removable") : t("spec.fixed")}`;
   $("spec-sectors").textContent = `${formatInt(usableSectors)} × ${d.sector_size} B`;
-  $("spec-volumes").textContent = d.volumes.length ? d.volumes.join(" ") : t("spec.none");
+  // Drive letters pass through `t` untouched — it returns any key it does not
+  // know — which is what lets the one entry that is a key be worded.
+  $("spec-volumes").textContent =
+    d.volumes.length ? d.volumes.map(t).join(" ") : t("spec.none");
 
   const box = $("safety-box");
   box.className = `safety ${d.verdict}`;
@@ -667,6 +675,8 @@ function resetResults() {
   $("plan-area").classList.add("hidden");
   $("plan-empty").classList.remove("hidden");
   $("plan-list").innerHTML = "";
+  $("plan-prepare").classList.add("hidden");
+  $("plan-refusal").classList.add("hidden");
   $("plan-actions").classList.add("hidden");
   $("stage-idle").classList.remove("hidden");
   $("progress-bar").style.width = "0";
@@ -798,7 +808,8 @@ function renderReport(r) {
   $("counts-body").innerHTML = rows.join("");
   $("evidence-count").textContent = t("ui.evidenceCount", { n: formatInt(details.length + rows.length) });
 
-  // Isolation is only offered when the diagnosis justifies it.
+  // What zone 3 is for depends on what was found, and there are three
+  // answers rather than two. Fencing is one of them.
   if (r.isolation_worthwhile) {
     $("plan-empty").classList.add("hidden");
     $("plan-area").classList.remove("hidden");
@@ -806,15 +817,21 @@ function renderReport(r) {
     // approved, and making the user press a button to find out what can be
     // built with it only postpones the answer.
     buildPlans();
+  } else if (r.scenario_kind === "pristine") {
+    // A card with no defects has nothing to fence, which is not the same as
+    // having nothing to do. Until this branch existed it fell through to the
+    // sentence below, and the best possible result was the only one that ended
+    // with no action at all — the card left erased and unpartitioned.
+    $("plan-empty").classList.add("hidden");
+    $("plan-area").classList.remove("hidden");
+    showPrepare();
   } else {
     $("plan-area").classList.add("hidden");
     $("plan-actions").classList.add("hidden");
     $("plan-empty").classList.remove("hidden");
-    $("plan-empty").textContent = r.scenario_kind === "pristine"
-      ? t("plan.none.pristine")
-      : r.scenario_kind === "not_proven"
-        ? t("plan.none.not_proven")
-        : t("plan.none.degrading");
+    $("plan-empty").textContent = r.scenario_kind === "not_proven"
+      ? t("plan.none.not_proven")
+      : t("plan.none.degrading");
   }
 }
 
@@ -997,6 +1014,7 @@ async function releaseCard() {
 async function buildPlans() {
   const controls = $("plan-controls");
   const refusal = $("plan-refusal");
+
   let response;
   try {
     response = await invoke("build_plans", { filesystem: $("fs-select").value });
@@ -1036,6 +1054,7 @@ async function buildPlans() {
 function showRefusal(bodyHtml) {
   $("plan-controls").classList.add("hidden");
   $("plan-actions").classList.add("hidden");
+  $("plan-prepare").classList.add("hidden");
   $("plan-list").innerHTML = "";
   const box = $("plan-refusal");
   box.innerHTML = `<strong>${escapeHtml(t("plan.cannot"))}</strong>${bodyHtml}`;
@@ -1064,12 +1083,109 @@ function refusalHtml(r) {
      <p class="refusal-why">${escapeHtml(t("refusal.why"))}</p>`;
 }
 
+/* Offers the one step a clean card still needs.
+ *
+ * The inspection writes over every sector, so a card leaves it erased whatever
+ * the verdict. That was the whole result for an intact card: nothing to fence,
+ * therefore nothing offered, and a working card handed back unusable. The
+ * filesystem selector and the volume name stay — they are exactly the two
+ * choices left — and the layout list is not drawn, because there is no layout. */
+function showPrepare() {
+  $("plan-controls").classList.remove("hidden");
+  $("plan-refusal").classList.add("hidden");
+  $("plan-list").innerHTML = "";
+
+  // A map adopted from a stored record says the card was intact months ago.
+  // The backend refuses to write on one, and saying so here is the difference
+  // between reading why and finding out after typing the device name into a
+  // confirmation dialog.
+  const fresh = !state.lastSnapshot || state.lastSnapshot.verified_now;
+
+  const box = $("plan-prepare");
+  box.innerHTML =
+    `<strong>${escapeHtml(t("prepare.title"))}</strong>` +
+    `<p>${escapeHtml(t("prepare.body"))}</p>` +
+    (fresh
+      ? `<p class="prepare-erased">${escapeHtml(t("prepare.erased"))}</p>`
+      : `<p class="prepare-erased">${escapeHtml(t("prepare.needsFresh"))}</p>`);
+  box.classList.remove("hidden");
+
+  $("btn-apply").classList.add("hidden");
+  const button = $("btn-prepare");
+  button.disabled = !fresh;
+  button.classList.remove("hidden");
+  $("plan-actions").classList.remove("hidden");
+}
+
+/* Writes one volume across a card the inspection found intact.
+ *
+ * Confirmed by the typed device name like every other write to a partition
+ * table. The card is already erased by this point, so what the confirmation
+ * guards is the disk it lands on, not the data on it — and getting that wrong
+ * would format a different card. */
+async function prepareCard() {
+  const d = state.selected;
+  if (!d) return;
+
+  const label = volumeLabel();
+  const typed = await openConfirm({
+    title: t("prepare.confirmTitle"),
+    bodyHtml:
+      `<p class="destructive">${escapeHtml(t("prepare.warning", { name: d.name }))}</p>` +
+      `<p>${escapeHtml(t("prepare.willWrite", {
+        fs: fsName($("fs-select").value),
+        label,
+      }))}</p>`,
+    expected: d.name,
+  });
+  if (typed === null) return;
+
+  toast(t("prepare.working"), "");
+  try {
+    const result = await invoke("prepare_card", {
+      typedName: typed,
+      filesystem: $("fs-select").value,
+      label,
+    });
+
+    const steps = result.steps.map((x) => `<li>${escapeHtml(stepMessage(x))}</li>`).join("");
+    const where = result.drive_letter
+      ? `<p>${t("apply.where", { letter: escapeHtml(result.drive_letter) })}</p>`
+      : "";
+    resetModalChrome();
+    $("modal-title").textContent = t("prepare.doneTitle");
+    $("modal-body").innerHTML = `${where}<ul class="steps">${steps}</ul>`;
+    $("modal-typed").classList.add("hidden");
+    $("modal-confirm").classList.add("hidden");
+    $("modal-cancel").textContent = t("modal.close");
+    $("modal").classList.remove("hidden");
+    toast(t("prepare.done"), "ok");
+    await refreshDevices();
+  } catch (e) {
+    toast(t(String(e)), "error");
+  }
+}
+
+/* The name the volume will carry, or a usable one when the field is empty.
+ *
+ * Trimmed here and sanitised again in the backend, which owns the rules: both
+ * filesystems accept eleven characters from a restricted set, and a label the
+ * user typed is not obliged to know that. */
+function volumeLabel() {
+  const field = $("label-input");
+  const typed = field ? field.value.trim() : "";
+  return typed || "SALVAGE";
+}
+
 /* Draws the layout chooser.
  *
  * Kept apart from fetching them: `buildPlans` talks to the backend and repaints
  * the card diagram, and mixing that with the drawing made the list impossible
  * to exercise on its own. */
 function renderPlanList() {
+  $("plan-prepare").classList.add("hidden");
+  $("btn-prepare").classList.add("hidden");
+  $("btn-apply").classList.remove("hidden");
   const list = $("plan-list");
   list.innerHTML = "";
 
@@ -1186,7 +1302,7 @@ async function applyPlan() {
     const result = await invoke("apply", {
       planIndex: plan.index,
       typedName: typed,
-      label: "SEGURO",
+      label: volumeLabel(),
       filesystem: $("fs-select").value,
     });
 
@@ -1331,9 +1447,16 @@ $("btn-cancel").addEventListener("click", () => invoke("cancel_scan").catch(() =
   }
 })();
 
-$("fs-select").addEventListener("change", buildPlans);
+// The filesystem choice feeds two different panels. On a clean card there are
+// no layouts to recompute — asking for them would fetch the refusal a card with
+// no defects gets, and put "this card cannot be partitioned" over the offer to
+// format it.
+$("fs-select").addEventListener("change", () => {
+  if ($("plan-prepare").classList.contains("hidden")) buildPlans();
+});
 $("btn-apply").addEventListener("click", applyPlan);
 $("btn-release").addEventListener("click", releaseCard);
+$("btn-prepare").addEventListener("click", prepareCard);
 
 listen("scan:progress", (e) => applySnapshot(e.payload));
 

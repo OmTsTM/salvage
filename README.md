@@ -267,6 +267,27 @@ sectors about to be used. A defect that appeared outside the approved area
 changes nothing, because that area was already condemned; a defect that appeared
 inside it is precisely what the re-verification finds.
 
+### When the card turns out to be fine
+
+An inspection writes its pattern over every sector, so a card leaves it erased
+and unpartitioned whatever the verdict. A card with defects then flows into a
+layout, which ends by formatting the volume it created. A card with none had
+nowhere to flow: nothing to fence, therefore nothing offered, and the best
+possible result was the only one that handed back an unusable card.
+
+**Preparing a card** is that missing step — one partition across the full
+capacity, formatted, named. It is offered only where nothing was condemned.
+Where defects exist, the same partition table is what *releasing* writes, and
+the difference is the claim attached to it: one hands back capacity that was
+proven, the other hands back capacity known to lose files. Presenting the second
+as "format the card" would dress that up as a convenience.
+
+Above 32 GB, `format.com` refuses to make a FAT32 volume and says so only after
+being asked — by which point the partition table is already written. Past that
+size the filesystem is written directly instead, by the same code the spliced
+strategy uses, which has no such limit. Below it the Windows formatter is left
+to do its job.
+
 ### The invariant everything rests on
 
 > No user data may ever land on a sector that was not explicitly approved.
@@ -407,7 +428,7 @@ crates/salvage-win32/    The only crate containing unsafe.
    sys.rs                Thin wrappers over the Windows API
    raw_device.rs         Unbuffered raw sector access
    enumerate.rs          Disk and volume discovery
-   apply.rs              Partition table writing, formatting and release
+   apply.rs              Partition table writing, formatting, preparation and release
    history.rs            Card records on disk
 
 src-tauri/               Bridge to the window. No business rules.

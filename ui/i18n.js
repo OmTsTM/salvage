@@ -218,6 +218,30 @@ const I18N = (() => {
         "Tabela de partições original do cartão restaurada.",
       "step.table_restored_full":
         "Nenhuma tabela original guardada: o cartão recebeu uma partição única cobrindo toda a capacidade.",
+      "ui.volumeLabel": "Nome do volume",
+      "prepare.title": "Nada foi condenado",
+      "prepare.body":
+        "Todos os setores responderam corretamente: não há área a isolar nem " +
+        "layout a escolher. O que falta ao cartão é um sistema de arquivos.",
+      "prepare.erased":
+        "A inspeção gravou sobre todos os setores, então o cartão está vazio " +
+        "agora. Formatar é o que o devolve ao uso.",
+      "spec.unlettered": "sem letra",
+      "prepare.needsFresh":
+        "Este resultado veio de um registro guardado, que descreve o cartão como ele estava. Rode a inspeção antes de formatar.",
+      "prepare.button": "Formatar o cartão",
+      "prepare.confirmTitle": "Confirmar formatação",
+      "prepare.warning": "Isto grava uma nova tabela de partições em {name}.",
+      "prepare.willWrite":
+        "O cartão ficará com um único volume {fs} cobrindo toda a capacidade, " +
+        "com o nome {label}.",
+      "prepare.working": "Formatando…",
+      "prepare.doneTitle": "Cartão pronto",
+      "prepare.done": "Cartão formatado.",
+      "err.not_pristine":
+        "A inspeção encontrou defeitos neste cartão, então um volume único sobre " +
+        "tudo é o formato errado. Escolha um layout, ou libere o cartão ciente do " +
+        "que isso devolve.",
       "release.button": "Liberar o cartão",
       "release.confirmTitle": "Confirmar liberação do cartão",
       "release.warning":
@@ -255,7 +279,6 @@ const I18N = (() => {
       "plan.cannotWhy":
         "Uma partição só pode ser criada sobre área contígua verificada. Neste cartão não " +
         "sobrou nenhuma grande o bastante.",
-      "plan.none.pristine": "Nenhum defeito foi encontrado: não há área a isolar neste cartão.",
       "plan.none.not_proven":
         "A inspeção não cobriu o cartão inteiro. Rode-a até o fim para que haja área " +
         "aprovada sobre a qual planejar.",
@@ -586,6 +609,29 @@ const I18N = (() => {
         "The card's original partition table was restored.",
       "step.table_restored_full":
         "No original table was kept: the card was given a single partition spanning its full capacity.",
+      "ui.volumeLabel": "Volume name",
+      "prepare.title": "Nothing was condemned",
+      "prepare.body":
+        "Every sector answered correctly: there is no area to fence and no " +
+        "layout to choose. What the card is missing is a filesystem.",
+      "prepare.erased":
+        "The inspection wrote over every sector, so the card is empty now. " +
+        "Formatting is what puts it back to use.",
+      "spec.unlettered": "no letter",
+      "prepare.needsFresh":
+        "This result came from a stored record, which describes the card as it was. Run the inspection before formatting.",
+      "prepare.button": "Format the card",
+      "prepare.confirmTitle": "Confirm formatting",
+      "prepare.warning": "This writes a new partition table on {name}.",
+      "prepare.willWrite":
+        "The card will carry one {fs} volume spanning its full capacity, named {label}.",
+      "prepare.working": "Formatting…",
+      "prepare.doneTitle": "Card ready",
+      "prepare.done": "Card formatted.",
+      "err.not_pristine":
+        "The inspection found defects on this card, so one volume over all of it " +
+        "is the wrong shape. Choose a layout, or release the card knowing what " +
+        "that gives back.",
       "release.button": "Release the card",
       "release.confirmTitle": "Confirm releasing the card",
       "release.warning":
@@ -623,7 +669,6 @@ const I18N = (() => {
       "plan.cannotWhy":
         "A partition can only be created over contiguous verified area. No run large enough " +
         "was left on this card.",
-      "plan.none.pristine": "No defect was found: there is no area to fence on this card.",
       "plan.none.not_proven":
         "The inspection did not cover the whole card. Run it to the end so that there is " +
         "approved area to plan over.",
@@ -960,6 +1005,30 @@ const I18N = (() => {
         "Se restauró la tabla de particiones original de la tarjeta.",
       "step.table_restored_full":
         "No se guardó ninguna tabla original: la tarjeta recibió una partición única que abarca toda su capacidad.",
+      "ui.volumeLabel": "Nombre del volumen",
+      "prepare.title": "No se condenó nada",
+      "prepare.body":
+        "Todos los sectores respondieron correctamente: no hay área que aislar " +
+        "ni diseño que elegir. Lo que le falta a la tarjeta es un sistema de archivos.",
+      "prepare.erased":
+        "La inspección escribió sobre todos los sectores, así que la tarjeta está " +
+        "vacía. Formatearla es lo que la devuelve al uso.",
+      "spec.unlettered": "sin letra",
+      "prepare.needsFresh":
+        "Este resultado viene de un registro guardado, que describe la tarjeta como estaba. Ejecute la inspección antes de formatear.",
+      "prepare.button": "Formatear la tarjeta",
+      "prepare.confirmTitle": "Confirmar el formateo",
+      "prepare.warning": "Esto escribe una nueva tabla de particiones en {name}.",
+      "prepare.willWrite":
+        "La tarjeta quedará con un único volumen {fs} que abarca toda su capacidad, " +
+        "con el nombre {label}.",
+      "prepare.working": "Formateando…",
+      "prepare.doneTitle": "Tarjeta lista",
+      "prepare.done": "Tarjeta formateada.",
+      "err.not_pristine":
+        "La inspección encontró defectos en esta tarjeta, así que un único volumen " +
+        "sobre todo es la forma equivocada. Elija un diseño, o libere la tarjeta " +
+        "sabiendo qué devuelve eso.",
       "release.button": "Liberar la tarjeta",
       "release.confirmTitle": "Confirmar la liberación de la tarjeta",
       "release.warning":
@@ -997,8 +1066,6 @@ const I18N = (() => {
       "plan.cannotWhy":
         "Una partición solo puede crearse sobre área contigua verificada. En esta tarjeta " +
         "no quedó ninguna lo bastante grande.",
-      "plan.none.pristine":
-        "No se encontró ningún defecto: no hay área que aislar en esta tarjeta.",
       "plan.none.not_proven":
         "La inspección no cubrió toda la tarjeta. Ejecútela hasta el final para que haya " +
         "área aprobada sobre la que planificar.",
@@ -1309,6 +1376,23 @@ const I18N = (() => {
       "remembered.unknownAge": "日期未知",
       "step.table_restored_card": "已恢复这张卡原本的分区表。",
       "step.table_restored_full": "未保存原始分区表：已为这张卡创建一个覆盖全部容量的单一分区。",
+      "ui.volumeLabel": "卷名",
+      "prepare.title": "没有任何区域被判废",
+      "prepare.body":
+        "所有扇区都回应正确：没有需要隔离的区域，也没有可选的布局。这张卡缺的只是一个文件系统。",
+      "prepare.erased":
+        "检测已覆写每一个扇区，因此这张卡现在是空的。格式化才能让它重新可用。",
+      "spec.unlettered": "无盘符",
+      "prepare.needsFresh": "该结果来自已保存的记录，描述的是当时的状态。请先运行检测，再进行格式化。",
+      "prepare.button": "格式化这张卡",
+      "prepare.confirmTitle": "确认格式化",
+      "prepare.warning": "这将在 {name} 上写入新的分区表。",
+      "prepare.willWrite": "这张卡将只有一个覆盖全部容量的 {fs} 卷，名称为 {label}。",
+      "prepare.working": "正在格式化……",
+      "prepare.doneTitle": "卡已就绪",
+      "prepare.done": "卡已格式化。",
+      "err.not_pristine":
+        "检测在这张卡上发现了缺陷，因此用单一卷覆盖全部容量并不合适。请选择一种布局，或在了解后果的前提下释放这张卡。",
       "release.button": "释放这张卡",
       "release.confirmTitle": "确认释放这张卡",
       "release.warning": "这将重写 {name} 的分区表，并恢复其全部容量。",
@@ -1331,7 +1415,6 @@ const I18N = (() => {
       "refusal.why":
         "隔离分区两侧各需要一条保护带，再加上最小分区尺寸。拼接卷仅为分配表和根目录就需要开头有这么多连续且完好的空间——而这张卡上无处安放。",
       "plan.cannotWhy": "分区只能建立在连续且已校验的区域上。这张卡上没有留下足够大的区段。",
-      "plan.none.pristine": "未发现任何缺陷：这张卡上没有需要隔离的区域。",
       "plan.none.not_proven": "检测没有覆盖整张卡。请运行到结束，才会有可供规划的合格区域。",
       "plan.none.degrading":
         "这张卡在检测过程中就在丢失扇区。任何分区布局都无法防住尚未出现的缺陷。",

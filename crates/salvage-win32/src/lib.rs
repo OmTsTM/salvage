@@ -19,7 +19,7 @@ pub mod raw_device;
 pub mod sys;
 pub mod text;
 
-pub use apply::{apply_plan, release_card, ApplyError, ApplyOutcome};
+pub use apply::{apply_plan, prepare_card, release_card, ApplyError, ApplyOutcome};
 pub use enumerate::WindowsDeviceEnumerator;
 pub use history::FileHistory;
 pub use raw_device::RawBlockDevice;
