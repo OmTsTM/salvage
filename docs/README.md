@@ -7,10 +7,10 @@ place it belongs, in an HTML comment inside `README.md` — search for `BANNER`,
 | File | Size | How to produce it |
 |---|---|---|
 | `banner.png` | 1280×420 | `python tools/gen_banner.py` |
-| `screenshot-scan.png` | ~1240×900 | Screen capture — the hero image |
-| `screenshot-verdict.png` | ~420×900 | Screen capture — the right panel alone |
-| `screenshot-consent.png` | ~700×500 | Screen capture — the confirmation dialog |
-| `screenshot-layouts.png` | ~420×700 | Screen capture — needs a card with usable area |
+| `screenshot-scan.png` | 1256×939 | **done** |
+| `screenshot-verdict.png` | 348×610 | **done** |
+| `screenshot-consent.png` | 600×496 | **done** |
+| `screenshot-layouts.png` | ~420×700 | Still needed — see below |
 | `write-order.png` | ~880×300 | Vector diagram |
 | `layouts.png` | ~880×260 | Vector diagram |
 
@@ -121,11 +121,17 @@ The isolation section with layouts listed and one selected, so the expanded
 detail is visible: the size, the cost line, the partition bar and the rows
 beneath it.
 
-**This one needs a card that has usable area left.** A card like the one used in
-development — 99.9% condemned, largest clean run 10 MB — produces a refusal
-instead, which is a truthful result but not the picture this slot wants. If no
-such card is to hand, skip this image rather than staging it; the refusal panel
-is not a substitute, because it illustrates the opposite point.
+**This one needs a card with defects and enough clean area between them.** Two
+states cannot produce it, and both were tried:
+
+- A card that is nearly all bad — 99.9% condemned, largest clean run 17 MB —
+  refuses every layout, because fencing needs 25 MB contiguous.
+- A card already fenced, re-inspected, comes back with no defect at all, and a
+  layout chooser has nothing to choose between.
+
+A card in between is what this picture needs. Skip it rather than staging one;
+neither of the above is a substitute, because each illustrates a different
+point.
 
 ---
 

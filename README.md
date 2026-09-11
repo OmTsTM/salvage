@@ -27,22 +27,15 @@ visible partition backed only by area that was verified byte for byte.
 > [What can honestly be promised](#what-can-honestly-be-promised) before trusting
 > a card with anything you would miss.
 
-<!-- SCREENSHOT: main window
-     ─────────────────────────────────────────────────────────────────────────
-     Save as docs/screenshot-scan.png (the app window, ~1240×900), then replace
-     this comment with:
+<p align="center">
+  <img src="docs/screenshot-scan.png" alt="An inspection in progress: the card diagram half painted, the address ruler beside it, and the verdict panel waiting" width="880">
+</p>
 
-         <p align="center"><img src="docs/screenshot-scan.png" alt="Inspection in progress" width="880"></p>
-
-     Capture a scan in progress, ideally around 60–70% of the verify phase, so
-     the image shows: the card diagram half painted, the address ruler beside
-     it, the throughput and remaining time under the progress bar, and the
-     verdict panel on the right. That single frame explains the program better
-     than the three paragraphs above it.
-
-     Capture instructions, and three further screenshots worth adding once this
-     one exists, are in docs/README.md.
-     ───────────────────────────────────────────────────────────────────────── -->
+<p align="center">
+  <em>Reading back and comparing, front to back. The area painted green came
+  back byte-identical to what was written; everything below the sweep is still
+  unverified, and is reported as such rather than assumed.</em>
+</p>
 
 <p align="center">
   <img src="docs/screenshot-consent.png" alt="The confirmation dialog, with the Confirm button disabled until the device name is typed in full" width="600">
@@ -239,6 +232,20 @@ prints both costs next to the option rather than only the larger number.
                inside it and a caption "marked in the FAT, never allocated".
      Same palette as the banner.
      ───────────────────────────────────────────────────────────────────────── -->
+
+### What a result looks like
+
+<p align="center">
+  <img src="docs/screenshot-verdict.png" alt="The result panel: 79.69 MB usable, high confidence, no defect found" width="348">
+</p>
+
+This is the same card as the banner — the one that came back 99.9% destroyed —
+re-inspected after fencing. The 79.69 MB that survived were written and read
+back identical, every sector. The 125.75 GB already condemned stayed out of the
+run: an earlier pass settled them, and there is nothing to learn there again.
+
+That is the whole claim, and its limit: the tool does not repair anything. It
+finds what still works, proves it, and puts a boundary around it.
 
 ### The invariant everything rests on
 
