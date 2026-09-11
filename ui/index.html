@@ -195,6 +195,9 @@
           <h3 id="scenario-label" class="scenario"></h3>
           <p id="scenario-mechanism" class="statement"></p>
           <p id="assurance-statement" class="statement statement-dim"></p>
+          <!-- The deadline on the claim above it. Without this the verdict
+               reads as durability, which is not what was measured. -->
+          <p id="retention-statement" class="statement statement-dim"></p>
         </div>
 
         <!-- Zone 2: the evidence. Real, and needed to justify the verdict, but

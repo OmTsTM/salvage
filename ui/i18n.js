@@ -145,7 +145,8 @@ const I18N = (() => {
 
       "statement.high":
         "A fronteira entre a área boa e a ruim é imposta pelo firmware e não se move com o " +
-        "uso. O que foi aprovado continuará aprovado.",
+        "uso. Isso fixa onde a fronteira está, não por quanto tempo as células atrás dela " +
+        "seguram o dado.",
       "statement.moderate":
         "Os defeitos aparentam estar estáveis, mas o cartão está no fim da vida útil. Use " +
         "para dados que você já tem copiados em outro lugar.",
@@ -311,6 +312,13 @@ const I18N = (() => {
         "justamente na parte ainda não lida, e área que tenha sobrevivido depois do " +
         "estrago também estaria lá.",
       "dead.stop": "Parar e ficar com o que está provado",
+      "retention.window":
+        "Cada setor foi relido entre {min} e {max} depois de ser gravado — nada foi " +
+        "medido além disso. Uma célula desgastada devolve o dado certo minutos depois " +
+        "de recebê-lo e ainda assim o perde durante a noite.",
+      "duration.underMinute": "menos de um minuto",
+      "duration.minutes": "{n} min",
+      "duration.hours": "{n} h",
       "scan.cancelled": "Inspeção cancelada.",
       "scan.done": "Inspeção concluída.",
       "scan.watchdog":
@@ -548,7 +556,8 @@ const I18N = (() => {
 
       "statement.high":
         "The boundary between the good area and the bad one is imposed by the firmware and " +
-        "does not move with use. What was approved will stay approved.",
+        "does not move with use. That fixes where the boundary sits, not how long the " +
+        "cells behind it hold data.",
       "statement.moderate":
         "The defects appear stable, but the card is at the end of its life. Use it for data " +
         "you already have copied elsewhere.",
@@ -712,6 +721,13 @@ const I18N = (() => {
         "part not yet read, and any area that survived past the damage would be found " +
         "there too.",
       "dead.stop": "Stop and keep what is proven",
+      "retention.window":
+        "Every sector was read back between {min} and {max} after being written — " +
+        "nothing beyond that was measured. A worn cell returns data correctly minutes " +
+        "after taking it and still loses it overnight.",
+      "duration.underMinute": "under a minute",
+      "duration.minutes": "{n} min",
+      "duration.hours": "{n} h",
       "scan.cancelled": "Inspection cancelled.",
       "scan.done": "Inspection complete.",
       "scan.watchdog":
@@ -950,7 +966,8 @@ const I18N = (() => {
 
       "statement.high":
         "La frontera entre el área buena y la mala la impone el firmware y no se mueve con " +
-        "el uso. Lo aprobado seguirá aprobado.",
+        "el uso. Eso fija dónde está la frontera, no cuánto tiempo retienen el dato las " +
+        "celdas que hay detrás.",
       "statement.moderate":
         "Los defectos parecen estables, pero la tarjeta está al final de su vida útil. Úsela " +
         "para datos que ya tenga copiados en otro sitio.",
@@ -1119,6 +1136,13 @@ const I18N = (() => {
         "A lo que renuncia: una tarjeta que miente sobre su capacidad se delata justo en " +
         "la parte aún no leída, y el área que haya sobrevivido al daño también estaría ahí.",
       "dead.stop": "Detener y conservar lo probado",
+      "retention.window":
+        "Cada sector se releyó entre {min} y {max} después de ser escrito: nada más " +
+        "allá de eso fue medido. Una celda desgastada devuelve el dato correcto minutos " +
+        "después de recibirlo y aun así lo pierde durante la noche.",
+      "duration.underMinute": "menos de un minuto",
+      "duration.minutes": "{n} min",
+      "duration.hours": "{n} h",
       "scan.cancelled": "Inspección cancelada.",
       "scan.done": "Inspección terminada.",
       "scan.watchdog":
@@ -1346,7 +1370,8 @@ const I18N = (() => {
       "assurance.none": "没有可信的依据",
 
       "statement.high":
-        "好区域与坏区域之间的界限由固件强制划定，不会随使用而移动。已认定合格的仍将合格。",
+        "好区域与坏区域之间的界限由固件强制划定，不会随使用而移动。这确定的是界限的位置，" +
+        "而不是界限之内的存储单元能把数据保持多久。",
       "statement.moderate":
         "缺陷看起来是稳定的，但这张卡已接近寿命终点。只用来存放你在别处已有备份的数据。",
       "statement.low":
@@ -1472,6 +1497,12 @@ const I18N = (() => {
       "dead.costs":
         "代价：谎报容量的卡正是在尚未读取的部分露出马脚，损坏之后若还有幸存区域也在那里。",
       "dead.stop": "停止并保留已证实的部分",
+      "retention.window":
+        "每个扇区在写入后 {min} 至 {max} 之间被回读——除此之外未测量任何内容。" +
+        "老化的存储单元在写入几分钟后仍能正确返回数据，却会在一夜之间将其丢失。",
+      "duration.underMinute": "不到一分钟",
+      "duration.minutes": "{n} 分钟",
+      "duration.hours": "{n} 小时",
       "scan.cancelled": "检测已取消。",
       "scan.done": "检测完成。",
       "scan.watchdog":

@@ -36,6 +36,9 @@ const I18N = sandbox.window.I18N;
  * Kept beside the call sites in spirit, not in code — a mismatch is exactly what
  * this file exists to catch, so reading the names from app.js would defeat it. */
 const CALLS = [
+  ["retention.window", { min: "under a minute", max: "2.7 h" }],
+  ["duration.minutes", { n: 32 }],
+  ["duration.hours", { n: "2.7" }],
   ["dead.lead", { from: "15.71 GB", size: "13.26 GB" }],
   ["dead.keeps", { approved: "15.67 GB" }],
   ["scan.watchdog", { n: 20 }],

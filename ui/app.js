@@ -805,6 +805,7 @@ function renderReport(r) {
   $("scenario-label").textContent = t(`scenario.${r.scenario_kind}`);
   $("scenario-mechanism").textContent = t(`mechanism.${r.scenario_kind}`);
   $("assurance-statement").textContent = t(`statement.${r.assurance}`);
+  renderRetention(r.retention);
 
   const details = [
     t("detail.largestRun", { size: escapeHtml(humanBytes(r.largest_usable_bytes)) }),
@@ -1029,6 +1030,49 @@ document.addEventListener("keydown", (e) => {
 /* An age in words. Coarse on purpose: the difference between 91 and 94 days is
  * not what the user is weighing, and a precise figure would invite reading it
  * as precision about the card. */
+/* Puts a deadline on the claim the verdict makes.
+ *
+ * "Every sector was written and read back identical" is true and, without an
+ * interval attached, misleading: it reads as durability. What an inspection
+ * measures is that the cell *took* the data and gave it back — and on the card
+ * that prompted this, the sector at address zero was read back a quarter of a
+ * second after it was written.
+ *
+ * A worn cell answers that question correctly and loses the data overnight,
+ * which is how a card passes an inspection and stutters the next day. So the
+ * interval is stated, and its limit with it. */
+function renderRetention(window_) {
+  const el = $("retention-statement");
+  if (!window_) {
+    // A map adopted from a stored record: the interval belongs to a session
+    // this one knows nothing about, and quoting it would be inventing it.
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+  el.textContent = t("retention.window", {
+    min: humanDuration(window_.shortest_secs),
+    max: humanDuration(window_.longest_secs),
+  });
+  el.classList.remove("hidden");
+}
+
+/* A duration in the coarsest unit that still says something true.
+ *
+ * The fraction is formatted for the language, not for whoever wrote this:
+ * "2.6 h" and "2,6 h" are the same measurement, and only one of them is right
+ * in front of a given reader. */
+function humanDuration(seconds) {
+  if (seconds < 60) return t("duration.underMinute");
+  if (seconds < 3600) return t("duration.minutes", { n: Math.floor(seconds / 60) });
+  return t("duration.hours", {
+    n: (seconds / 3600).toLocaleString(window.I18N.locale(), {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }),
+  });
+}
+
 function humanAge(seconds) {
   const day = 86400;
   if (seconds < 3600) return t("age.underHour");

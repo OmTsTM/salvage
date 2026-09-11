@@ -257,6 +257,37 @@ pub struct ScanOutcome {
     pub map: SectorMap,
     /// Sectors actually inspected.
     pub sectors_scanned: u64,
+    /// How long each sector waited between being written and being read back.
+    pub retention: RetentionWindow,
+}
+
+/// The interval every sector waited between its write and its verification.
+///
+/// # Why this is a measurement and not an estimate
+///
+/// Writing travels back to front and verification front to back, so the sector
+/// written *last* is the one verified *first*, and the sector written first is
+/// verified last. Those two are the extremes, and every other sector falls
+/// between them: as an address rises, its write moves earlier and its
+/// verification moves later, so the wait only ever grows. The bounds therefore
+/// come out of four clock readings, with no assumption about the rate.
+///
+/// # Why the verdict has to say it
+///
+/// A cell that takes a charge and returns it a second later has proved it
+/// accepts data. Whether it still holds that data tomorrow is a different
+/// question, and a worn cell answers yes to the first and no to the second —
+/// which is how a card passes an inspection and loses files overnight.
+///
+/// Until this existed the window said "every sector was written and read back
+/// identical", a sentence with no deadline in it, over a scan whose shortest
+/// interval was a quarter of a second.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RetentionWindow {
+    /// The shortest wait any sector had, in seconds.
+    pub shortest_secs: u64,
+    /// The longest wait any sector had, in seconds.
+    pub longest_secs: u64,
 }
 
 /// Runs a scan over a device.
@@ -292,7 +323,9 @@ impl Scanner {
         let sector_size = geometry.sector_size() as usize;
         let mut buf = vec![0u8; sector_size * self.config.chunk_sectors as usize];
 
+        let write_started = std::time::Instant::now();
         self.write_pass(device, &span, &mut buf, &mut map, observer)?;
+        let write_finished = std::time::Instant::now();
 
         // The delay turns verification into a retention test: it measures
         // whether the data is still there, not merely that the cell took it.
@@ -305,11 +338,22 @@ impl Scanner {
             }
         }
 
+        // The last sector written is the first one read back, so the gap
+        // between the two passes is the shortest wait on the device.
+        let verify_started = std::time::Instant::now();
         self.verify_pass(device, &span, &mut buf, &mut map, observer)?;
+        let verify_finished = std::time::Instant::now();
 
         debug_assert!(map.check_invariants().is_ok(), "sector map inconsistent at end of scan");
 
-        Ok(ScanOutcome { map, sectors_scanned: span.len() })
+        Ok(ScanOutcome {
+            map,
+            sectors_scanned: span.len(),
+            retention: RetentionWindow {
+                shortest_secs: verify_started.duration_since(write_finished).as_secs(),
+                longest_secs: verify_finished.duration_since(write_started).as_secs(),
+            },
+        })
     }
 
     /// Writes the pattern walking the device back to front.
@@ -724,6 +768,42 @@ mod tests {
             pattern: PatternKind::Pseudorandom,
             retention_delay_secs: 0,
         }
+    }
+
+    /// The whole point of the field: a pause between the passes has to show up
+    /// as the shortest wait, because that is the number the verdict quotes.
+    /// Without this, `retention_delay_secs` could stop working and the window
+    /// would keep printing a reassuring interval it never waited.
+    #[test]
+    fn a_pause_between_the_passes_becomes_the_shortest_wait() {
+        let mut card = SimulatedCard::healthy(SS, 4_096);
+        let mut cfg = config();
+        cfg.retention_delay_secs = 2;
+
+        let outcome = Scanner::new(cfg, CancellationToken::new())
+            .run(&mut card, &mut SilentObserver)
+            .expect("the scan should have completed");
+
+        assert!(
+            outcome.retention.shortest_secs >= 2,
+            "the pause was not waited: shortest was {}s",
+            outcome.retention.shortest_secs
+        );
+        assert!(
+            outcome.retention.longest_secs >= outcome.retention.shortest_secs,
+            "the longest wait cannot be shorter than the shortest"
+        );
+    }
+
+    /// With no pause the shortest wait is essentially nothing — which is the
+    /// truth this exists to publish, not a fault to hide. A scan that writes
+    /// and immediately re-reads has proved the cell accepts data and nothing
+    /// about whether it keeps it.
+    #[test]
+    fn without_a_pause_the_shortest_wait_is_negligible() {
+        let mut card = SimulatedCard::healthy(SS, 4_096);
+        let outcome = scan(&mut card);
+        assert_eq!(outcome.retention.shortest_secs, 0);
     }
 
     fn scan(card: &mut SimulatedCard) -> ScanOutcome {

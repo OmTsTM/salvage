@@ -405,11 +405,21 @@ struct ReportView {
     isolation_worthwhile: bool,
     /// Largest run with no detected defect, including uninspected area.
     largest_usable_bytes: u64,
+    /// How long each sector waited between being written and being read back.
+    ///
+    /// `None` for a map adopted from a stored record, which was measured in a
+    /// session this one knows nothing about. The window then says nothing
+    /// rather than quoting an interval it cannot vouch for.
+    retention: Option<salvage_app::scan::RetentionWindow>,
     details: Vec<ReportDetail>,
 }
 
 impl ReportView {
-    fn from(report: &HealthReport, sector_size: u32) -> Self {
+    fn from(
+        report: &HealthReport,
+        sector_size: u32,
+        retention: Option<salvage_app::scan::RetentionWindow>,
+    ) -> Self {
         // Measurements only. The scenario name, the mechanism behind it and the
         // wording of what the numbers are worth all live in the window, which is
         // the presentation layer and the only place that should hold a language.
@@ -452,6 +462,7 @@ impl ReportView {
             assurance: report.assurance.as_str().to_string(),
             isolation_worthwhile: report.isolation_is_worthwhile,
             largest_usable_bytes: report.largest_usable_sectors * sector_size as u64,
+            retention,
             details,
         }
     }
@@ -511,6 +522,7 @@ fn build_snapshot(
     scanning: bool,
     view: Option<salvage_core::LbaRange>,
     verified_now: bool,
+    retention: Option<salvage_app::scan::RetentionWindow>,
 ) -> Snapshot {
     let sector_size = map.geometry().sector_size();
 
@@ -562,7 +574,7 @@ fn build_snapshot(
         counts,
         sector_size,
         capacity_bytes: view.len() * sector_size as u64,
-        report: report.map(|r| ReportView::from(r, sector_size)),
+        report: report.map(|r| ReportView::from(r, sector_size, retention)),
         // Only while a scan is running: on a finished map the frontier is the
         // end of the card, and a span touching it would describe nothing the
         // user can still act on.
@@ -652,6 +664,9 @@ struct AppState {
     /// What an earlier session measured about the selected card, held so the
     /// user can adopt it without a second read from disk.
     remembered: Option<CardRecord>,
+    /// How long each sector waited between write and verification, for the
+    /// inspection that produced the working map.
+    retention: Option<salvage_app::scan::RetentionWindow>,
     /// Whether the working map was produced by an inspection in this session.
     ///
     /// False when it came from a record. A map in that state describes hardware
@@ -690,7 +705,7 @@ impl ScanObserver for WindowObserver {
             self.last_logged_percent = percent;
         }
 
-        let snapshot = build_snapshot(map, Some(progress), None, true, self.view, true);
+        let snapshot = build_snapshot(map, Some(progress), None, true, self.view, true, None);
         match self.app.emit("scan:progress", snapshot) {
             Ok(()) => self.emitted += 1,
             // If the event never reaches the window, the interface sits still
@@ -891,7 +906,8 @@ fn use_remembered(app: AppHandle, state: State<'_, Shared>) -> Result<(), String
 
     log(&format!("adopting the remembered map, age {:?}s", record.age_seconds()));
     let report = diagnose(&record.map, None);
-    let snapshot = build_snapshot(&record.map, None, Some(&report), false, guard.view_span, false);
+    let snapshot =
+        build_snapshot(&record.map, None, Some(&report), false, guard.view_span, false, None);
     guard.map = Some(record.map);
     guard.report = Some(report);
     guard.verified_now = false;
@@ -1141,11 +1157,20 @@ fn start_scan(typed_name: String, app: AppHandle, state: State<'_, Shared>) -> R
                 let mut map = outcome.map;
                 map.withhold_outside(span);
                 let report = diagnose(&map, guard.baseline.as_ref());
-                let snapshot = build_snapshot(&map, None, Some(&report), false, config.range, true);
+                let snapshot = build_snapshot(
+                    &map,
+                    None,
+                    Some(&report),
+                    false,
+                    config.range,
+                    true,
+                    Some(outcome.retention),
+                );
                 // This pass becomes the next one's baseline, which is what
                 // distinguishes a stable defect from active degradation.
                 guard.baseline = Some(map.clone());
                 guard.verified_now = true;
+                guard.retention = Some(outcome.retention);
                 remember(&device, &map);
                 guard.map = Some(map);
                 guard.report = Some(report);
@@ -1441,6 +1466,7 @@ fn snapshot(state: State<'_, Shared>) -> Result<Option<Snapshot>, String> {
             guard.scanning,
             guard.view_span,
             guard.verified_now,
+            guard.retention,
         )
     }))
 }
