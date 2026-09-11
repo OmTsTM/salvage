@@ -141,20 +141,9 @@ nonexistent area approved.
 
 The write pass therefore walks the device **back to front**.
 
-<!-- DIAGRAM: write order
-     ─────────────────────────────────────────────────────────────────────────
-     Optional but worth it. Save as docs/write-order.png (~880×300) and replace
-     this comment with an <img> as above.
-
-     Two rows side by side, both showing a card whose real capacity is half what
-     it advertises:
-       Left,  "front to back":  arrows run left→right; the real half ends up
-              overwritten and marked red, the fake half marked green. Caption:
-              "wrong: the working half is condemned".
-       Right, "back to front":  arrows run right→left; the real half is green,
-              the fake half red. Caption: "right".
-     Same palette as the banner.
-     ───────────────────────────────────────────────────────────────────────── -->
+<p align="center">
+  <img src="docs/write-order.svg" alt="Two strips showing the same counterfeit card: written front to back the real half is condemned, written back to front the diagnosis comes out right" width="880">
+</p>
 
 ### Retention, not acceptance
 
@@ -218,6 +207,10 @@ What it costs is the margin. Fencing dilates each condemned region by a guard
 band; a cluster map marks exactly the cells that failed and leaves their
 neighbours allocatable. FAT32 also caps a single file at 4 GiB. The interface
 prints both costs next to the option rather than only the larger number.
+
+<p align="center">
+  <img src="docs/layouts.svg" alt="The same card under both mechanisms: fencing keeps the largest clean run, splicing spans the whole card and withholds the defective clusters" width="880">
+</p>
 
 <p align="center">
   <img src="docs/screenshot-layouts.png" alt="The layout chooser: four options, each with its size and its cost, the selected one expanded" width="331">

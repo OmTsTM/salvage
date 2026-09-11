@@ -11,8 +11,8 @@ place it belongs, in an HTML comment inside `README.md` — search for `BANNER`,
 | `screenshot-verdict.png` | 348×610 | **done** |
 | `screenshot-consent.png` | 600×496 | **done** |
 | `screenshot-layouts.png` | 331×680 | **done** — rendered, see below |
-| `write-order.png` | ~880×300 | Vector diagram |
-| `layouts.png` | ~880×260 | Vector diagram |
+| `write-order.svg` | 880×300 | `python tools/gen_diagrams.py` |
+| `layouts.svg` | 880×260 | `python tools/gen_diagrams.py` |
 
 Only the banner and `screenshot-scan.png` are worth doing first. Everything else
 deepens the page rather than carrying it.
@@ -143,42 +143,37 @@ Replace it with a capture the moment a card in that condition is to hand.
 
 ---
 
-# Diagrams — vector, never generated
+# Diagrams — vector, generated from the numbers
 
-Not an aesthetic preference. These carry labels and exact proportions, and image
-models get both wrong in ways that are subtly misleading rather than obviously
-broken. A diagram that states the wrong thing confidently is worse than no
-diagram.
+Produced by [`tools/gen_diagrams.py`](../tools/gen_diagrams.py):
 
-Build them as SVG, or in any vector editor, from these specifications.
+```powershell
+python tools/gen_diagrams.py
+```
 
-## write-order.png (~880×300)
+SVG, and written by a script rather than drawn by hand or by a model. These
+carry labels and exact proportions, and an image model gets both wrong subtly
+rather than obviously — a diagram that states the wrong thing confidently is
+worse than no diagram.
 
-Two stacked strips, each the same counterfeit card whose real capacity is half
-what it advertises. A dashed vertical line splits each at the midpoint, labelled
-*real capacity ends here*.
+The geometry comes from the figures it depicts. In `write-order.svg` the
+boundary sits at exactly half the card, because that is the case being
+described: one advertising twice the memory it has. In `layouts.svg` both strips
+read their defect positions from the same list, so the picture cannot end up
+claiming the two mechanisms were handed different cards.
 
-**Top strip — "front to back", marked wrong.** Arrows along the top running left
-to right. The left half, the memory that exists, is red; the right half, which
-does not exist, is green. Caption: *the working half is condemned, the imaginary
-half approved*.
+To change either, edit the script and re-run.
 
-**Bottom strip — "back to front", marked correct.** Arrows running right to
-left. The left half is green, the right half red. Caption: *the diagnosis comes
-out the right way round*.
+## write-order.svg
 
-## layouts.png (~880×260)
+Two strips, one card, one variable: the direction the write pass travels. Front
+to back, high addresses overwrite the low ones they collide with, and on
+read-back the memory that genuinely exists is the half that fails — the
+diagnosis inverts. Back to front, it comes out the right way round.
 
-Two stacked strips representing one card, defects as narrow red bands scattered
-across an otherwise green length.
+## layouts.svg
 
-**Top — "Fenced".** One green segment, the largest clean run, labelled `D:` with
-a size. Everything else hatched grey, labelled *quarantine — Windows does not
-mount it*. Sub-caption: *keeps a guard band around every defect*.
-
-**Bottom — "Spliced".** One continuous green segment spanning the whole card,
-labelled `D:` with a visibly larger size, the red defect bands still visible
-inside it. Sub-caption: *marked in the FAT, never allocated — no guard band*.
-
-What the reader should take: the second recovers more space, and the sub-caption
-is where the cost is stated.
+The same defects under both mechanisms. Fencing keeps the largest clean run and
+quarantines everything else; splicing spans the whole card and withholds the
+defective clusters in the allocation table. The second recovers more, and the
+caption under it is where the cost is stated.
