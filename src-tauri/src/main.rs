@@ -4,26 +4,46 @@
 
 //! Bridge between the toolchain core and the window.
 //!
-//! This file holds no business rules: it maps domain types into serializable
-//! structures, drives the scan on its own thread, and forwards progress to the
-//! window. Every decision about what is safe stays in the layers below, which
-//! are the tested ones.
+//! This file holds no business rules. Every decision about what is safe stays
+//! in the layers below, which are the tested ones; what lives here is the
+//! command surface the window calls, and the launch that puts it on screen.
+//!
+//! The rest of the bridge sits beside it, split along the lines the work
+//! actually falls on:
+//!
+//! - [`diagnostics`] — the log, which everything else calls into and which
+//!   depends on nothing.
+//! - [`views`] — the one place a domain type becomes a shape JSON can carry.
+//!   It ships no sentences: the window owns the wording, in four languages.
+//! - [`state`] — what a session holds, and the observer that watches a scan
+//!   and pushes progress out.
+//!
+//! They were one file of 1,661 lines until the boundary between "decide when
+//! to answer" and "decide what an answer looks like" was worth drawing.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+mod diagnostics;
+mod state;
+mod views;
+
+use diagnostics::{log, log_path, START};
+use state::{consent_key, ScanEnd, Shared, WindowObserver};
+use views::{
+    build_snapshot, read_prior_layout, state_code, DeviceView, PlanView, PriorLayoutView,
+    RememberedView, Snapshot,
+};
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use salvage_app::device::{BlockDevice, DeviceEnumerator, DeviceInfo};
+use salvage_app::device::{DeviceEnumerator, DeviceInfo};
 use salvage_app::history::{CardHistory, CardRecord};
-use salvage_app::safety::{evaluate, DestructiveConsent, SafetyPolicy, SafetyVerdict};
-use salvage_app::scan::{
-    CancellationToken, ScanConfig, ScanObserver, ScanPhase, ScanProgress, Scanner,
-};
-use salvage_core::health::{diagnose, FailureScenario, HealthReport};
-use salvage_core::mbr::{MasterBootRecord, PriorLayout, MBR_SIZE};
+use salvage_app::safety::{DestructiveConsent, SafetyPolicy};
+use salvage_app::scan::{CancellationToken, ScanConfig, Scanner};
+use salvage_core::health::diagnose;
+use salvage_core::mbr::PriorLayout;
 use salvage_core::planner::{
-    fenced_view, layout_requirements, plan_layouts, FileSystem, LayoutRequirements, PartitionPlan,
-    PartitionRole, PlanningPolicy,
+    fenced_view, layout_requirements, plan_layouts, FileSystem, LayoutRequirements, PlanningPolicy,
 };
 use salvage_core::sector_map::{SectorCounts, SectorMap, SectorState};
 use salvage_win32::{apply_plan, FileHistory, RawBlockDevice, WindowsDeviceEnumerator};
@@ -36,103 +56,7 @@ const VIEW_BUCKETS: usize = 6144;
 /// Minimum interval between updates pushed to the window.
 const EMIT_INTERVAL: Duration = Duration::from_millis(120);
 
-// ----------------------------------------------------------------- logging
-
-/// Process start time, the basis for log timestamps.
-static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
-
-/// Path to the log file.
-///
-/// It sits under `LOCALAPPDATA`, in a subdirectory of its own, rather than in
-/// the temporary directory. An elevated process writing to a path named by
-/// `TMP` can be induced to write elsewhere — someone need only control that
-/// environment variable and leave a symbolic link where the file should be. The
-/// user's data directory offers no such detour.
-pub fn log_path() -> std::path::PathBuf {
-    let base = std::env::var_os("LOCALAPPDATA")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    let dir = base.join("Salvage");
-    let _ = std::fs::create_dir_all(&dir);
-    dir.join("salvage.log")
-}
-
-/// Largest log kept before the previous one is set aside. A scan of a failing
-/// card produces a lot of lines, and without a ceiling the file grows without
-/// bound on the user's system drive.
-const MAX_LOG_BYTES: u64 = 16 * 1024 * 1024;
-
-/// Defect runs written to the log before it switches to counting them.
-const MAX_LOGGED_DEFECTS: u64 = 500;
-
-/// Bytes this process has written to the log.
-///
-/// Rotation only happens at startup, which bounds the file across runs but not
-/// within one: a single inspection once left a 2.6 GB file behind. The defect
-/// cap is the reason that cannot happen again, and this is the floor under it —
-/// past the ceiling the file simply stops growing. Stopping rather than
-/// rotating mid-run is deliberate: half a run in one file and half in another
-/// is worse for reading back than a run that ends early, and what explains a
-/// failure is almost always near the beginning.
-static LOG_BYTES: AtomicU64 = AtomicU64::new(0);
-
-/// Moves an oversized log aside, keeping exactly one previous copy.
-///
-/// Run once per process, before the handle is opened: rotating while a scan is
-/// writing would leave part of the run in one file and part in another.
-fn rotate_if_large(path: &std::path::Path) {
-    let too_big = std::fs::metadata(path).map(|m| m.len() > MAX_LOG_BYTES).unwrap_or(false);
-    if too_big {
-        let _ = std::fs::rename(path, path.with_extension("log.previous"));
-    }
-}
-
-/// Appends one line to the diagnostic log.
-///
-/// The graphical window runs without a console: without this file, a failure
-/// inside the scan thread would vanish without a trace, and the interface would
-/// sit still with nobody knowing where it stopped.
-fn log(msg: &str) {
-    use std::io::Write;
-    let elapsed = START.get_or_init(Instant::now).elapsed().as_secs_f64();
-
-    // Line breaks would come in handy for anyone wanting to forge whole log
-    // entries; each message occupies exactly one line.
-    let clean: String =
-        msg.chars().map(|c| if c.is_control() { ' ' } else { c }).take(2000).collect();
-
-    // The handle is opened once and kept. Re-opening it per line also meant
-    // creating the directory per line, and during a scan of a failing card that
-    // turned logging into the slowest part of the program by a wide margin.
-    static FILE: std::sync::OnceLock<Option<Mutex<std::fs::File>>> = std::sync::OnceLock::new();
-    let handle = FILE.get_or_init(|| {
-        let path = log_path();
-        rotate_if_large(&path);
-        std::fs::OpenOptions::new().create(true).append(true).open(path).ok().map(Mutex::new)
-    });
-
-    // Twelve bytes of timestamp and framing, plus the message itself.
-    let width = clean.len() as u64 + 12;
-    let before = LOG_BYTES.fetch_add(width, Ordering::Relaxed);
-    if before >= MAX_LOG_BYTES {
-        return;
-    }
-
-    if let Some(lock) = handle {
-        if let Ok(mut f) = lock.lock() {
-            let _ = writeln!(f, "[{elapsed:9.3}s] {clean}");
-            // Exactly one caller crosses the line, so exactly one says so.
-            if before + width >= MAX_LOG_BYTES {
-                let _ = writeln!(
-                    f,
-                    "[{elapsed:9.3}s] log ceiling of {MAX_LOG_BYTES} bytes reached;                      nothing further will be written to this file"
-                );
-            }
-        }
-    }
-}
-
-// -------------------------------------------------------------------- abertura
+// ------------------------------------------------------------------- launch
 
 /// Shortest the splash stays on screen.
 ///
@@ -182,20 +106,7 @@ fn reveal_main(app: &AppHandle, why: &str) {
     }
 }
 
-// ---------------------------------------------------------------- utilidades
-
-/// Numeric code for a state, used in the visualization's compact vector.
-fn state_code(state: SectorState) -> u8 {
-    match state {
-        SectorState::Untested => 0,
-        SectorState::Good => 1,
-        SectorState::BadRead => 2,
-        SectorState::BadWrite => 3,
-        SectorState::Corrupt => 4,
-        SectorState::Aliased => 5,
-        SectorState::Fenced => 6,
-    }
-}
+// ---------------------------------------------------------------- utilities
 
 /// Stores what was just measured, so a later session need not measure it again.
 ///
@@ -248,516 +159,12 @@ fn session_nonce() -> u64 {
         | 1
 }
 
-// -------------------------------------------------------------------- views
-
-#[derive(Serialize, Clone)]
-struct DeviceView {
-    path: String,
-    index: u32,
-    name: String,
-    bus: String,
-    removable: bool,
-    capacity_bytes: u64,
-    sector_size: u32,
-    total_sectors: u64,
-    volumes: Vec<String>,
-    verdict: String,
-    /// Absolute impediments, if any.
-    blocks: Vec<salvage_app::safety::SafetyBlock>,
-    /// Risks the user may knowingly accept.
-    warnings: Vec<salvage_app::safety::SafetyWarning>,
-    /// What an earlier inspection already fenced off, when the card carries
-    /// such a layout. `None` also covers "not looked at yet": the list does
-    /// not read a table for every disk it names, only for the one selected.
-    prior: Option<PriorLayoutView>,
-    /// What an earlier session measured about this card, if anything.
-    remembered: Option<RememberedView>,
-}
-
-/// A summary of what is remembered, offered to the window.
-///
-/// The map itself stays in the backend. The window needs to say what is known
-/// and how old it is; handing it millions of sectors to make that sentence
-/// would be a strange way to say it.
-#[derive(Serialize, Clone)]
-struct RememberedView {
-    /// Seconds since the inspection, or `None` when the clock disagrees.
-    age_seconds: Option<u64>,
-    approved_bytes: u64,
-    defective_bytes: u64,
-    /// Whether the card's own partition table was kept, and so whether
-    /// releasing it can restore that rather than inventing one.
-    can_restore_table: bool,
-}
-
-/// An earlier layout, in the terms the window needs to talk about it.
-#[derive(Serialize, Clone)]
-struct PriorLayoutView {
-    /// Sectors the next inspection will cover.
-    inspect_sectors: u64,
-    /// Sectors the earlier layout withheld from data.
-    fenced_sectors: u64,
-    /// Data partitions that layout left behind.
-    data_partitions: usize,
-}
-
-impl PriorLayoutView {
-    fn from(prior: &PriorLayout) -> Self {
-        Self {
-            inspect_sectors: prior.data_span().map_or(0, |r| r.len()),
-            fenced_sectors: prior.quarantined.iter().map(|r| r.len()).sum(),
-            data_partitions: prior.data.len(),
-        }
-    }
-}
-
-impl DeviceView {
-    fn from(device: &DeviceInfo, policy: &SafetyPolicy) -> Self {
-        // The window receives classifications and picks its own wording; the
-        // application layer ships no user-facing prose.
-        let (verdict, blocks, warnings) = match evaluate(device, policy) {
-            SafetyVerdict::Allowed => ("allowed".to_string(), Vec::new(), Vec::new()),
-            SafetyVerdict::NeedsConfirmation { warnings } => {
-                ("needs_confirmation".to_string(), Vec::new(), warnings)
-            }
-            SafetyVerdict::Blocked { reasons } => ("blocked".to_string(), reasons, Vec::new()),
-        };
-
-        Self {
-            path: device.path.clone(),
-            index: device.index,
-            name: device.display_name(),
-            bus: device.bus_type.as_str().to_string(),
-            removable: device.removable_media,
-            capacity_bytes: device.capacity_bytes(),
-            sector_size: device.geometry.sector_size(),
-            total_sectors: device.geometry.total_sectors(),
-            volumes: device
-                .volumes
-                .iter()
-                // A key rather than a sentence, like everything else crossing
-                // this boundary: a volume with no letter is the one entry here
-                // that needs wording, and the window owns the four languages.
-                .map(|v| v.drive_letter.map_or("spec.unlettered".into(), |c| format!("{c}:")))
-                .collect(),
-            verdict,
-            blocks,
-            warnings,
-            prior: None,
-            remembered: None,
-        }
-    }
-}
-
-/// Reads back the layout an earlier inspection left on the card.
-///
-/// The handle is opened read-only and dropped straight away: this answers a
-/// question *about* the card and must not be able to change it. `None` when
-/// the table cannot be read or was not written by this program — and then the
-/// inspection covers the whole device, as it always did.
-fn read_prior_layout(device: &DeviceInfo) -> Option<PriorLayout> {
-    let mut raw = RawBlockDevice::open(&device.path, salvage_win32::Access::Read).ok()?;
-    // A whole sector, because that is the smallest unit a block device hands
-    // over; the record occupies the first 512 bytes of it whatever the sector
-    // size happens to be.
-    let mut first = vec![0u8; device.geometry.sector_size() as usize];
-    raw.read_at(0, &mut first).ok()?;
-    let mbr = MasterBootRecord::from_bytes(first.get(..MBR_SIZE)?).ok()?;
-    PriorLayout::read(&mbr)
-}
-
-/// One measured fact behind a verdict.
-///
-/// A kind and its numbers, never a sentence. The window owns the wording, and
-/// it now owns it in four languages — a `Vec<String>` assembled here would have
-/// pinned the whole report to whichever one this file was written in, and
-/// pinned the number formatting with it: a thousands separator is not the same
-/// character in every language that reads this screen.
-#[derive(Serialize, Clone)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-enum ReportDetail {
-    /// Capacity the card claims.
-    AnnouncedCapacity { sectors: u64 },
-    /// Capacity it actually has.
-    RealCapacity { sectors: u64 },
-    /// Addresses that served another address's content.
-    AliasEvidence { count: usize },
-    /// Distinct defective regions.
-    DefectRegions { count: usize },
-    /// The second pass found the same defects in the same places.
-    SecondPassIdentical,
-    /// Sectors that passed the first pass and failed the second.
-    NewlyFailedSectors { sectors: u64 },
-    /// Regions that appeared between the two passes.
-    NewRegions { count: usize },
-    /// Area the inspection never reached.
-    UnverifiedArea { sectors: u64 },
-    /// Only one pass ran, which cannot judge stability.
-    OnePassOnly,
-}
-
-#[derive(Serialize, Clone)]
-struct ReportView {
-    /// Stable scenario identifier. The window maps it to wording; the domain
-    /// deliberately ships no user-facing prose.
-    scenario_kind: String,
-    assurance: String,
-    isolation_worthwhile: bool,
-    /// Largest run with no detected defect, including uninspected area.
-    largest_usable_bytes: u64,
-    /// How long each sector waited between being written and being read back.
-    ///
-    /// `None` for a map adopted from a stored record, which was measured in a
-    /// session this one knows nothing about. The window then says nothing
-    /// rather than quoting an interval it cannot vouch for.
-    retention: Option<salvage_app::scan::RetentionWindow>,
-    details: Vec<ReportDetail>,
-}
-
-impl ReportView {
-    fn from(
-        report: &HealthReport,
-        sector_size: u32,
-        retention: Option<salvage_app::scan::RetentionWindow>,
-    ) -> Self {
-        // Measurements only. The scenario name, the mechanism behind it and the
-        // wording of what the numbers are worth all live in the window, which is
-        // the presentation layer and the only place that should hold a language.
-        let details = match &report.scenario {
-            FailureScenario::Pristine => Vec::new(),
-            FailureScenario::CounterfeitCapacity {
-                real_capacity_sectors,
-                reported_capacity_sectors,
-                evidence_count,
-            } => vec![
-                ReportDetail::AnnouncedCapacity { sectors: *reported_capacity_sectors },
-                ReportDetail::RealCapacity { sectors: *real_capacity_sectors },
-                ReportDetail::AliasEvidence { count: *evidence_count },
-            ],
-            FailureScenario::ExhaustedSpare { defect_regions } => vec![
-                ReportDetail::DefectRegions { count: *defect_regions },
-                ReportDetail::SecondPassIdentical,
-            ],
-            FailureScenario::ActivelyDegrading { newly_failed_sectors, newly_failed_regions } => {
-                vec![
-                    ReportDetail::NewlyFailedSectors { sectors: *newly_failed_sectors },
-                    ReportDetail::NewRegions { count: newly_failed_regions.len() },
-                ]
-            }
-            FailureScenario::NotProven { unverified_sectors, defect_regions } => {
-                let mut out = vec![ReportDetail::UnverifiedArea { sectors: *unverified_sectors }];
-                if *defect_regions > 0 {
-                    out.push(ReportDetail::DefectRegions { count: *defect_regions });
-                }
-                out
-            }
-            FailureScenario::Indeterminate { defect_regions } => vec![
-                ReportDetail::DefectRegions { count: *defect_regions },
-                ReportDetail::OnePassOnly,
-            ],
-        };
-
-        Self {
-            scenario_kind: report.scenario.kind().to_string(),
-            assurance: report.assurance.as_str().to_string(),
-            isolation_worthwhile: report.isolation_is_worthwhile,
-            largest_usable_bytes: report.largest_usable_sectors * sector_size as u64,
-            retention,
-            details,
-        }
-    }
-}
-
-#[derive(Serialize, Clone)]
-struct Snapshot {
-    scanning: bool,
-    phase: String,
-    fraction: f64,
-    sectors_done: u64,
-    sectors_total: u64,
-    current_lba: u64,
-    defects_found: u64,
-    buckets: Vec<u8>,
-    /// Blocks that hold approved sectors but are not painted as approved.
-    ///
-    /// A block takes the worst state inside it, so one bad sector hides
-    /// thousands of good ones — deliberately, because the reverse would hide a
-    /// defect. On a card where the survivors are a fraction of a percent that
-    /// leaves them invisible, and "where is my good space" becomes unanswerable
-    /// from the picture. These are marked on top instead: the fill keeps
-    /// telling the truth about the damage, and the marks say the area exists.
-    approved_marks: Vec<u32>,
-    counts: SectorCounts,
-    sector_size: u32,
-    capacity_bytes: u64,
-    report: Option<ReportView>,
-    /// The unbroken defective span the scan is currently inside, if any.
-    ///
-    /// A measurement of what is behind the frontier, never a claim about what
-    /// lies ahead. The window uses it to offer the choice to stop early, and
-    /// says in the same breath what stopping keeps and what it forgoes.
-    dead_run: Option<DeadRunView>,
-    /// Whether this map was measured in this session.
-    ///
-    /// A map adopted from a stored record describes the card as it was, and
-    /// every write the window can offer is refused on one. The window needs to
-    /// know before it offers, rather than after the user has typed the device
-    /// name into a confirmation.
-    verified_now: bool,
-}
-
-/// An unbroken stretch where nothing came back intact.
-#[derive(Serialize, Clone)]
-struct DeadRunView {
-    /// Where the stretch begins, as an offset into the card.
-    start_bytes: u64,
-    /// How much of it has been examined so far.
-    bytes: u64,
-}
-
-fn build_snapshot(
-    map: &SectorMap,
-    progress: Option<&ScanProgress>,
-    report: Option<&HealthReport>,
-    scanning: bool,
-    view: Option<salvage_core::LbaRange>,
-    verified_now: bool,
-    retention: Option<salvage_app::scan::RetentionWindow>,
-) -> Snapshot {
-    let sector_size = map.geometry().sector_size();
-
-    // Whatever the inspection is about is what the window draws and what it
-    // measures: the whole card, or the area an earlier layout left in use. One
-    // interval feeds the picture, the tally and the ruler beside them, so the
-    // three cannot end up describing different things.
-    let view = view.unwrap_or_else(|| map.geometry().full_range());
-    let counts = map.counts_in(view);
-    let sampled = map.downsample_range(view, VIEW_BUCKETS);
-    let approved_marks = sampled
-        .iter()
-        .enumerate()
-        .filter(|(_, b)| b.counts.good > 0 && b.dominant != SectorState::Good)
-        .map(|(i, _)| i as u32)
-        .collect();
-    let buckets = sampled.into_iter().map(|b| state_code(b.dominant)).collect();
-
-    let (phase, fraction, done, total, lba, defects) = match progress {
-        Some(p) => (
-            match p.phase {
-                ScanPhase::Writing => "writing",
-                ScanPhase::Verifying => "verifying",
-                ScanPhase::Refining => "refining",
-            },
-            p.fraction(),
-            p.sectors_done,
-            p.sectors_total,
-            p.current_lba,
-            p.defects_found,
-        ),
-        None => {
-            let fraction =
-                if view.is_empty() { 1.0 } else { counts.tested() as f64 / view.len() as f64 };
-            ("idle", fraction, 0, view.len(), 0, 0)
-        }
-    };
-
-    Snapshot {
-        scanning,
-        phase: phase.to_string(),
-        fraction,
-        sectors_done: done,
-        sectors_total: total,
-        current_lba: lba,
-        defects_found: defects,
-        buckets,
-        approved_marks,
-        counts,
-        sector_size,
-        capacity_bytes: view.len() * sector_size as u64,
-        report: report.map(|r| ReportView::from(r, sector_size, retention)),
-        // Only while a scan is running: on a finished map the frontier is the
-        // end of the card, and a span touching it would describe nothing the
-        // user can still act on.
-        dead_run: progress
-            .filter(|_| scanning)
-            .and_then(|p| map.defective_run_at(p.current_lba))
-            .map(|r| DeadRunView {
-                start_bytes: r.start() * sector_size as u64,
-                bytes: r.len() * sector_size as u64,
-            }),
-        verified_now,
-    }
-}
-
-#[derive(Serialize, Clone)]
-struct PartitionView {
-    label: String,
-    role: String,
-    start_lba: u64,
-    sectors: u64,
-    size_bytes: u64,
-    mbr_type: String,
-    offset_percent: f64,
-    length_percent: f64,
-}
-
-#[derive(Serialize, Clone)]
-struct PlanView {
-    index: usize,
-    strategy: String,
-    usable_bytes: u64,
-    /// Approved area the guard band and alignment keep out of the partition.
-    /// Zero for the splicing strategy, which gives up nothing — and a sentence
-    /// explaining a cost of zero contradicts itself, so the window needs the
-    /// figure and not merely its label.
-    sacrificed_bytes: u64,
-    partitions: Vec<PartitionView>,
-}
-
-impl PlanView {
-    fn from(index: usize, plan: &PartitionPlan) -> Self {
-        let total = plan.geometry.total_sectors().max(1) as f64;
-        Self {
-            index,
-            strategy: plan.strategy.kind().to_string(),
-            usable_bytes: plan.usable_bytes,
-            sacrificed_bytes: plan.sacrificed_bytes,
-            partitions: plan
-                .partitions
-                .iter()
-                .map(|p| PartitionView {
-                    label: p.label.clone(),
-                    role: match p.role {
-                        PartitionRole::Data => "data".into(),
-                        PartitionRole::Quarantine => "quarantine".into(),
-                    },
-                    start_lba: p.range.start(),
-                    sectors: p.range.len(),
-                    size_bytes: p.byte_len(&plan.geometry),
-                    mbr_type: format!("{:#04x}", p.mbr_type),
-                    offset_percent: p.range.start() as f64 / total * 100.0,
-                    length_percent: p.range.len() as f64 / total * 100.0,
-                })
-                .collect(),
-        }
-    }
-}
-
-// -------------------------------------------------------------------- estado
-
-#[derive(Default)]
-struct AppState {
-    devices: Vec<DeviceInfo>,
-    selected: Option<DeviceInfo>,
-    map: Option<SectorMap>,
-    baseline: Option<SectorMap>,
-    report: Option<HealthReport>,
-    plans: Vec<PartitionPlan>,
-    consent: Option<DestructiveConsent>,
-    cancel: CancellationToken,
-    scanning: bool,
-    /// Layout found on the selected card, read from its own partition table.
-    prior: Option<PriorLayout>,
-    /// Interval the inspection and the window are about. `None` is the whole
-    /// device, which is the case for any card this program has not fenced.
-    view_span: Option<salvage_core::LbaRange>,
-    /// What an earlier session measured about the selected card, held so the
-    /// user can adopt it without a second read from disk.
-    remembered: Option<CardRecord>,
-    /// How long each sector waited between write and verification, for the
-    /// inspection that produced the working map.
-    retention: Option<salvage_app::scan::RetentionWindow>,
-    /// Whether the working map was produced by an inspection in this session.
-    ///
-    /// False when it came from a record. A map in that state describes hardware
-    /// as it was, and the apply path will not write a data partition from it
-    /// until the area has been read back today.
-    verified_now: bool,
-}
-
-type Shared = Arc<Mutex<AppState>>;
-
-/// Observer that downsamples the map and pushes progress to the window.
-struct WindowObserver {
-    app: AppHandle,
-    /// Interval the window is drawing. See [`build_snapshot`].
-    view: Option<salvage_core::LbaRange>,
-    last_emit: Instant,
-    emitted: u64,
-    last_logged_percent: i64,
-    defects_seen: u64,
-}
-
-impl ScanObserver for WindowObserver {
-    fn on_progress(&mut self, progress: &ScanProgress, map: &SectorMap) {
-        let finished = progress.sectors_done >= progress.sectors_total;
-        if !finished && self.last_emit.elapsed() < EMIT_INTERVAL {
-            return;
-        }
-        self.last_emit = Instant::now();
-
-        let percent = (progress.fraction() * 100.0) as i64;
-        if self.emitted == 0 || percent / 5 != self.last_logged_percent / 5 {
-            log(&format!(
-                "progress: phase {:?}, {percent}%, LBA {}, defects {}",
-                progress.phase, progress.current_lba, progress.defects_found
-            ));
-            self.last_logged_percent = percent;
-        }
-
-        let snapshot = build_snapshot(map, Some(progress), None, true, self.view, true, None);
-        match self.app.emit("scan:progress", snapshot) {
-            Ok(()) => self.emitted += 1,
-            // If the event never reaches the window, the interface sits still
-            // while the scan runs normally. That needs to be known.
-            Err(e) => log(&format!("failed to emit progress: {e}")),
-        }
-    }
-
-    fn on_defect(&mut self, range: salvage_core::LbaRange, state: SectorState) {
-        self.defects_seen += 1;
-
-        // The log exists to explain a failure after the fact, and the first
-        // few hundred defects explain it as well as a million would. Past the
-        // ceiling only the count is kept: writing every one of them is what
-        // once made the inspection slower than the card it was inspecting.
-        if self.defects_seen <= MAX_LOGGED_DEFECTS {
-            log(&format!(
-                "defect {:?} at LBA {}..{} ({} sectors)",
-                state,
-                range.start(),
-                range.end(),
-                range.len()
-            ));
-            if self.defects_seen == MAX_LOGGED_DEFECTS {
-                log("defect log capped; further defects are counted, not listed");
-            }
-        }
-    }
-}
-
-/// How an inspection ended when it produced no map.
-///
-/// Cancellation is not a failure: the user asked for it, and the window says
-/// so in its own words on its own terms. Telling the two apart here is what
-/// keeps a deliberate stop from arriving at the window dressed as an error —
-/// and dressed in English, since a `ScanError`'s text is written for the log
-/// and the command-line tools, never for this window.
-enum ScanEnd {
-    /// The user asked for it.
-    Cancelled,
-    /// Something went wrong. Carries the text for the log.
-    Failed(String),
-}
-
-/// Failures the window has wording for, in every language it speaks.
-///
 /// A command's `Err` is a lookup key, not a sentence. The alternative was
 /// Portuguese assembled here, which no amount of translating the window could
 /// ever have reached. Anything without a key still arrives as its own text —
 /// the window's lookup falls through to whatever it was handed — so a rare
 /// technical failure gets reported verbatim instead of swallowed.
-mod err {
+pub mod err {
     pub const STATE: &str = "err.state";
     pub const ENUMERATE: &str = "err.enumerate";
     pub const DEVICE_GONE: &str = "err.device_gone";
@@ -780,16 +187,7 @@ mod err {
     pub const SCAN_ALL_WRITES_FAILED: &str = "err.scan.all_writes_failed";
 }
 
-/// Turns a consent refusal into a key, leaving the detail for the log.
-fn consent_key(e: &salvage_app::safety::ConfirmationError) -> &'static str {
-    use salvage_app::safety::ConfirmationError;
-    match e {
-        ConfirmationError::DeviceBlocked => err::DEVICE_BLOCKED,
-        ConfirmationError::NameMismatch { .. } => err::NAME_MISMATCH,
-    }
-}
-
-// ------------------------------------------------------------------ comandos
+// ------------------------------------------------------------------ commands
 
 #[tauri::command]
 fn list_devices(state: State<'_, Shared>) -> Result<Vec<DeviceView>, String> {
@@ -809,7 +207,7 @@ fn list_devices(state: State<'_, Shared>) -> Result<Vec<DeviceView>, String> {
         .iter()
         .map(|d| {
             let mut view = DeviceView::from(d, &policy);
-            if view.verdict != "blocked" {
+            if !view.is_blocked() {
                 view.prior = read_prior_layout(d).as_ref().map(PriorLayoutView::from);
             }
             view
@@ -865,18 +263,11 @@ fn select_device(path: String, state: State<'_, Shared>) -> Result<DeviceView, S
     let store = FileHistory::in_user_data();
     match store.load(&device.fingerprint()) {
         Ok(Some(record)) => {
-            let ss = record.map.geometry().sector_size() as u64;
-            let counts = record.map.counts();
             log(&format!(
                 "card remembered from an earlier session, age {:?}s",
                 record.age_seconds()
             ));
-            view.remembered = Some(RememberedView {
-                age_seconds: record.age_seconds(),
-                approved_bytes: counts.good * ss,
-                defective_bytes: counts.defective() * ss,
-                can_restore_table: record.table_before.is_some(),
-            });
+            view.remembered = Some(RememberedView::from_record(&record));
             guard.remembered = Some(record);
         }
         Ok(None) => guard.remembered = None,
@@ -1646,13 +1037,6 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn state_codes_are_distinct() {
-        let codes: std::collections::HashSet<u8> =
-            SectorState::ALL.iter().map(|s| state_code(*s)).collect();
-        assert_eq!(codes.len(), SectorState::ALL.len());
-    }
 
     #[test]
     fn session_nonce_is_never_zero() {
