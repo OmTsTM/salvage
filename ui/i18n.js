@@ -249,6 +249,27 @@ const I18N = (() => {
         "A inspeção encontrou defeitos neste cartão, então um volume único sobre " +
         "tudo é o formato errado. Escolha um layout, ou libere o cartão ciente do " +
         "que isso devolve.",
+      "recheck.offer":
+        "Ou releia a área aprovada e compare com o que foi gravado nela. Isso " +
+        "responde o que a inspeção não respondeu: se o cartão ainda segura o dado " +
+        "depois desse tempo parado. Não grava nada.",
+      "recheck.button": "Reconferir o que o cartão ainda segura",
+      "recheck.started": "Relendo a área aprovada. Nada será gravado.",
+      "recheck.held":
+        "{size} relidos e idênticos ao que foi gravado {when}. O cartão segurou o dado " +
+        "por esse tempo — nada foi medido além disso.",
+      "recheck.lost":
+        "{lost} de {size} já não têm o que foi gravado {when}. Esses setores aceitaram " +
+        "o dado e o perderam parados; é assim que um cartão passa na inspeção e falha " +
+        "no dia seguinte. Eles agora estão condenados no mapa.",
+      "recheck.referenceGone":
+        "O padrão gravado pela inspeção já não está neste cartão, então não há contra " +
+        "o que comparar. Algo escreveu nele desde então — formatação ou arquivos. " +
+        "Daqui isso é indistinguível de perda total, e nenhuma das duas coisas será afirmada.",
+      "err.no_pattern":
+        "Este resultado foi guardado antes de o programa registrar a semente do padrão, " +
+        "então não há o que comparar. Uma inspeção nova passa a registrá-la.",
+      "err.nothing_approved": "Não há área aprovada neste resultado para reler.",
       "release.button": "Liberar o cartão",
       "release.confirmTitle": "Confirmar liberação do cartão",
       "release.warning":
@@ -663,6 +684,27 @@ const I18N = (() => {
         "The inspection found defects on this card, so one volume over all of it " +
         "is the wrong shape. Choose a layout, or release the card knowing what " +
         "that gives back.",
+      "recheck.offer":
+        "Or read the approved area back and compare it against what was written " +
+        "there. That answers what the inspection could not: whether the card still " +
+        "holds the data after sitting this long. It writes nothing.",
+      "recheck.button": "Re-check what the card still holds",
+      "recheck.started": "Reading the approved area back. Nothing will be written.",
+      "recheck.held":
+        "{size} read back identical to what was written {when}. The card held the data " +
+        "for that long — nothing beyond that was measured.",
+      "recheck.lost":
+        "{lost} of {size} no longer hold what was written {when}. Those sectors took the " +
+        "data and lost it sitting still, which is how a card passes an inspection and " +
+        "fails the next day. They are condemned in the map now.",
+      "recheck.referenceGone":
+        "The pattern the inspection wrote is no longer on this card, so there is nothing " +
+        "to compare against. Something wrote to it since — a format, or files. From here " +
+        "that is indistinguishable from total loss, and neither will be claimed.",
+      "err.no_pattern":
+        "This result was stored before the program recorded the pattern's seed, so there " +
+        "is nothing to compare against. A fresh inspection records it.",
+      "err.nothing_approved": "This result has no approved area to read back.",
       "release.button": "Release the card",
       "release.confirmTitle": "Confirm releasing the card",
       "release.warning":
@@ -1084,6 +1126,27 @@ const I18N = (() => {
         "La inspección encontró defectos en esta tarjeta, así que un único volumen " +
         "sobre todo es la forma equivocada. Elija un diseño, o libere la tarjeta " +
         "sabiendo qué devuelve eso.",
+      "recheck.offer":
+        "O relea el área aprobada y compárela con lo que se escribió allí. Eso responde " +
+        "lo que la inspección no pudo: si la tarjeta todavía retiene el dato después de " +
+        "este tiempo parada. No escribe nada.",
+      "recheck.button": "Volver a comprobar lo que la tarjeta retiene",
+      "recheck.started": "Releyendo el área aprobada. No se escribirá nada.",
+      "recheck.held":
+        "{size} releídos e idénticos a lo que se escribió {when}. La tarjeta retuvo el " +
+        "dato ese tiempo: nada más allá de eso fue medido.",
+      "recheck.lost":
+        "{lost} de {size} ya no tienen lo que se escribió {when}. Esos sectores tomaron " +
+        "el dato y lo perdieron estando quietos, que es como una tarjeta aprueba una " +
+        "inspección y falla al día siguiente. Ahora están condenados en el mapa.",
+      "recheck.referenceGone":
+        "El patrón que escribió la inspección ya no está en esta tarjeta, así que no hay " +
+        "con qué comparar. Algo escribió en ella desde entonces: un formateo o archivos. " +
+        "Desde aquí eso es indistinguible de una pérdida total, y no se afirmará ninguna.",
+      "err.no_pattern":
+        "Este resultado se guardó antes de que el programa registrara la semilla del " +
+        "patrón, así que no hay con qué comparar. Una inspección nueva la registra.",
+      "err.nothing_approved": "Este resultado no tiene área aprobada que releer.",
       "release.button": "Liberar la tarjeta",
       "release.confirmTitle": "Confirmar la liberación de la tarjeta",
       "release.warning":
@@ -1469,6 +1532,22 @@ const I18N = (() => {
       "prepare.done": "卡已格式化。",
       "err.not_pristine":
         "检测在这张卡上发现了缺陷，因此用单一卷覆盖全部容量并不合适。请选择一种布局，或在了解后果的前提下释放这张卡。",
+      "recheck.offer":
+        "或者把已批准的区域重新读出来，与当初写入的内容比对。这回答了检测无法回答的问题：" +
+        "静置这么久之后，这张卡是否还保存着数据。它不写入任何内容。",
+      "recheck.button": "重新检查这张卡还保存着什么",
+      "recheck.started": "正在重读已批准的区域。不会写入任何内容。",
+      "recheck.held":
+        "{size} 重读结果与{when}写入的内容完全一致。这张卡在这段时间里保住了数据——除此之外未测量任何内容。",
+      "recheck.lost":
+        "{size} 中有 {lost} 已不再保存{when}写入的内容。这些扇区接受了数据，又在静置中丢失了它——" +
+        "这正是一张卡通过检测却在第二天失败的方式。它们现在已在映射中判废。",
+      "recheck.referenceGone":
+        "检测写入的图案已不在这张卡上，因此无从比对。此后有东西写入过它——格式化，或者文件。" +
+        "从这里看，这与全部丢失无法区分，两者都不会被断言。",
+      "err.no_pattern":
+        "该结果保存于程序记录图案种子之前，因此无从比对。重新检测一次即会记录。",
+      "err.nothing_approved": "该结果没有可供重读的已批准区域。",
       "release.button": "释放这张卡",
       "release.confirmTitle": "确认释放这张卡",
       "release.warning": "这将重写 {name} 的分区表，并恢复其全部容量。",

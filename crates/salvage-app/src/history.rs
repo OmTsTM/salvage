@@ -38,6 +38,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use salvage_core::pattern::PatternKind;
 use salvage_core::sector_map::SectorMap;
 use serde::{Deserialize, Serialize};
 
@@ -64,12 +65,42 @@ pub struct CardRecord {
     /// The partition table found before this program first wrote one, if it was
     /// ever captured.
     pub table_before: Option<Vec<u8>>,
+    /// The seed and shape of the pattern this scan wrote.
+    ///
+    /// What makes a later re-read possible at all: the expected content of a
+    /// sector is computed from the nonce and its own address, so without these
+    /// there is nothing to compare a sector against. A record written before
+    /// this field existed has `None`, and re-checking is simply not offered for
+    /// it rather than attempted against a guess.
+    #[serde(default)]
+    pub pattern: Option<WrittenPattern>,
+}
+
+/// What an inspection wrote, in enough detail to recognise it again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WrittenPattern {
+    /// Seed distinguishing this inspection's pattern from any other's.
+    pub nonce: u64,
+    /// Payload shape.
+    pub kind: PatternKind,
 }
 
 impl CardRecord {
     /// Builds a record for a map just measured.
     pub fn new(fingerprint: impl Into<String>, map: SectorMap) -> Self {
-        Self { fingerprint: fingerprint.into(), scanned_at: now(), map, table_before: None }
+        Self {
+            fingerprint: fingerprint.into(),
+            scanned_at: now(),
+            map,
+            table_before: None,
+            pattern: None,
+        }
+    }
+
+    /// Notes the pattern the inspection wrote, so the area can be re-read later.
+    pub fn wrote(mut self, nonce: u64, kind: PatternKind) -> Self {
+        self.pattern = Some(WrittenPattern { nonce, kind });
+        self
     }
 
     /// Attaches the table that was on the card before this program wrote one.

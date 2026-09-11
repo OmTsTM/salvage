@@ -125,6 +125,7 @@ impl AsRef<Path> for FileHistory {
 mod tests {
     use super::*;
     use salvage_app::history::TABLE_BYTES;
+    use salvage_core::pattern::PatternKind;
     use salvage_core::sector_map::{SectorMap, SectorState};
     use salvage_core::{DeviceGeometry, LbaRange};
 
@@ -155,6 +156,44 @@ mod tests {
         assert_eq!(back.table_before, record.table_before);
         assert_eq!(back.scanned_at, record.scanned_at);
         let _ = fs::remove_dir_all(store.root);
+    }
+
+    /// Records written before the pattern was stored must keep loading. They
+    /// simply cannot be re-checked, which is the honest outcome: there is
+    /// nothing left to compare their card against.
+    #[test]
+    fn a_record_from_before_the_pattern_was_stored_still_loads() {
+        let root = temp_root("older");
+        let store = FileHistory::new(&root);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            store.path_for(FP),
+            r#"{"fingerprint":"SDXC|Generic|S1|4096|512","scanned_at":1,
+               "map":{"geometry":{"sector_size":512,"total_sectors":4096},
+               "runs":[{"range":{"start":0,"end":4096},"state":"good"}],"aliases":[]},
+               "table_before":null}"#,
+        )
+        .unwrap();
+
+        let record = store.load(FP).unwrap().expect("an older record must still load");
+        assert!(record.pattern.is_none(), "and it offers nothing to compare against");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// Without the seed there is no expected content for a sector, so a record
+    /// that lost it could only be re-checked against a guess.
+    #[test]
+    fn the_pattern_survives_the_round_trip_so_the_area_can_be_read_back() {
+        let root = temp_root("pattern");
+        let store = FileHistory::new(&root);
+        store
+            .save(&CardRecord::new(FP, map()).wrote(0xDEAD_BEEF, PatternKind::Pseudorandom))
+            .unwrap();
+
+        let pattern = store.load(FP).unwrap().unwrap().pattern.expect("the seed should survive");
+        assert_eq!(pattern.nonce, 0xDEAD_BEEF);
+        assert_eq!(pattern.kind, PatternKind::Pseudorandom);
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

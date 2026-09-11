@@ -29,7 +29,7 @@ use diagnostics::{log, log_path, START};
 use state::{consent_key, ScanEnd, Shared, WindowObserver};
 use views::{
     build_snapshot, read_prior_layout, state_code, DeviceView, PlanView, PriorLayoutView,
-    RememberedView, Snapshot,
+    RecheckView, RememberedView, Snapshot,
 };
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -42,6 +42,7 @@ use salvage_app::safety::{DestructiveConsent, SafetyPolicy};
 use salvage_app::scan::{CancellationToken, ScanConfig, Scanner};
 use salvage_core::health::diagnose;
 use salvage_core::mbr::PriorLayout;
+use salvage_core::pattern::PatternKind;
 use salvage_core::planner::{
     fenced_view, layout_requirements, plan_layouts, FileSystem, LayoutRequirements, PlanningPolicy,
 };
@@ -114,12 +115,15 @@ fn reveal_main(app: &AppHandle, why: &str) {
 /// lost, and the inspection the user waited hours for must not fail with it.
 /// The one thing kept from any earlier record is the card's original partition
 /// table: that is what makes fencing reversible, and it exists only once.
-fn remember(device: &DeviceInfo, map: &SectorMap) {
+fn remember(device: &DeviceInfo, map: &SectorMap, wrote: (u64, PatternKind)) {
     let store = FileHistory::in_user_data();
     let fingerprint = device.fingerprint();
     let previous = store.load(&fingerprint).ok().flatten();
 
-    let mut record = CardRecord::new(&fingerprint, map.clone());
+    // The seed goes in with the map: without it the area cannot be read back
+    // later, and reading it back later is the only way to learn whether the
+    // card still holds what it took.
+    let mut record = CardRecord::new(&fingerprint, map.clone()).wrote(wrote.0, wrote.1);
     if let Some(table) = previous.and_then(|r| r.table_before) {
         record.remember_table(&table);
     }
@@ -170,6 +174,10 @@ pub mod err {
     pub const DEVICE_GONE: &str = "err.device_gone";
     pub const SCAN_RUNNING: &str = "err.scan_running";
     pub const NOTHING_REMEMBERED: &str = "err.nothing_remembered";
+    /// The record predates the field that makes a re-read possible.
+    pub const NO_PATTERN: &str = "err.no_pattern";
+    /// Nothing was approved, so there is no area worth re-reading.
+    pub const NOTHING_APPROVED: &str = "err.nothing_approved";
     pub const REMEMBERED_OTHER_CARD: &str = "err.remembered_other_card";
     pub const STALE_MAP: &str = "err.stale_map";
     pub const NO_DEVICE: &str = "err.no_device";
@@ -444,6 +452,160 @@ fn prepare_card(
     Ok(ApplyView { steps: outcome.steps, drive_letter: outcome.data_volume_letter, prior: None })
 }
 
+/// Re-reads the approved area of a stored record, days later, without writing.
+///
+/// # The question a scan cannot answer
+///
+/// An inspection proves a cell took the data and gave it back. On the last run
+/// of a 252 GB card the shortest interval between the two was a quarter of a
+/// second, and the longest two hours — so what it proved was that the cells
+/// accept data, not that they keep it. A worn cell answers the first correctly
+/// and the second badly, which is how a card passes an inspection and loses
+/// files overnight.
+///
+/// Running this the next day asks the second question, over exactly the area a
+/// layout would use.
+///
+/// # Why it asks for no consent
+///
+/// It writes nothing, and the handle it opens cannot: the device is opened for
+/// reading, so the guarantee is the operating system's rather than this
+/// function's good intentions. There is nothing to consent to.
+#[tauri::command]
+fn recheck_retention(app: AppHandle, state: State<'_, Shared>) -> Result<(), String> {
+    let (device, record, cancel) = {
+        let mut guard = state.lock().map_err(|_| err::STATE)?;
+        if guard.scanning {
+            return Err(err::SCAN_RUNNING.into());
+        }
+        let device = guard.selected.clone().ok_or(err::NO_DEVICE)?;
+        let record = guard.remembered.clone().ok_or(err::NOTHING_REMEMBERED)?;
+        if record.pattern.is_none() {
+            return Err(err::NO_PATTERN.into());
+        }
+        guard.cancel = CancellationToken::new();
+        guard.scanning = true;
+        (device, record, guard.cancel.clone())
+    };
+
+    let spans: Vec<salvage_core::LbaRange> = record.map.usable_ranges().collect();
+    let approved: u64 = spans.iter().map(|r| r.len()).sum();
+    if approved == 0 {
+        if let Ok(mut guard) = state.lock() {
+            guard.scanning = false;
+        }
+        return Err(err::NOTHING_APPROVED.into());
+    }
+
+    let pattern = record.pattern.expect("checked above");
+    log(&format!(
+        "re-checking {} approved sectors on {} against the pattern from {}s ago",
+        approved,
+        device.path,
+        record.age_seconds().unwrap_or(0)
+    ));
+
+    let shared: Shared = Arc::clone(state.inner());
+    std::thread::spawn(move || {
+        let outcome = (|| -> Result<salvage_app::scan::ReverifyOutcome, ScanEnd> {
+            // Read-only, so the operating system enforces what the comment
+            // above only promises.
+            let mut raw =
+                RawBlockDevice::open(&device.path, salvage_win32::Access::Read).map_err(|e| {
+                    log(&format!("failed to open for re-check: {e}"));
+                    ScanEnd::Failed(e.to_string())
+                })?;
+
+            let mut config = ScanConfig::new(pattern.nonce, device.geometry.sector_size());
+            config.pattern = pattern.kind;
+
+            let mut observer = WindowObserver::new(app.clone(), None);
+            Scanner::new(config, cancel).reverify(&mut raw, &spans, &mut observer).map_err(|e| {
+                match e {
+                    salvage_app::scan::ScanError::Cancelled => ScanEnd::Cancelled,
+                    other => ScanEnd::Failed(other.to_string()),
+                }
+            })
+        })();
+
+        let mut guard = match shared.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        guard.scanning = false;
+
+        match outcome {
+            Ok(out) => {
+                log(&format!(
+                    "re-check finished in {}s: {} matched, {} corrupt, {} foreign, {} aliased, {} unreadable",
+                    out.elapsed_secs,
+                    out.tally.matched,
+                    out.tally.corrupt,
+                    out.tally.foreign,
+                    out.tally.aliased,
+                    out.tally.unreadable
+                ));
+
+                // Most of the area answering with no recognisable header means
+                // something wrote to this card since the inspection. The
+                // comparison is then between two unrelated things, and
+                // reporting it as damage would condemn a healthy card.
+                if !out.reference_survived() {
+                    log("re-check abandoned: the pattern is no longer on this card");
+                    let _ = app.emit("recheck:reference-gone", ());
+                    return;
+                }
+
+                let held = out.tally.defects() == 0;
+                let view = RecheckView {
+                    examined_bytes: out.sectors_examined * device.geometry.sector_size() as u64,
+                    lost_bytes: out.tally.defects() * device.geometry.sector_size() as u64,
+                    elapsed_secs: out.elapsed_secs,
+                    age_seconds: record.age_seconds(),
+                    held,
+                };
+
+                // Merged onto the stored map rather than replacing it. The
+                // re-read covers only the approved area, so everything else
+                // comes back untested — and adopting that wholesale would throw
+                // away what the original scan proved about the condemned half,
+                // turning a diagnosis into "nothing proven". What the re-read
+                // measured overwrites what the record said; what it did not
+                // look at keeps standing.
+                let mut merged = record.map.clone();
+                for run in out.map.runs() {
+                    if run.state != SectorState::Untested {
+                        merged.mark(run.range, run.state);
+                    }
+                }
+
+                // The area a layout could use has now been read back today,
+                // which is exactly what the apply gate asks for.
+                guard.map = Some(merged);
+                guard.verified_now = true;
+                guard.retention = None;
+                if let Some(map) = guard.map.as_ref() {
+                    let report = diagnose(map, None);
+                    let snapshot =
+                        build_snapshot(map, None, Some(&report), false, None, true, None);
+                    guard.report = Some(report);
+                    let _ = app.emit("scan:done", snapshot);
+                }
+                let _ = app.emit("recheck:done", view);
+            }
+            Err(ScanEnd::Cancelled) => {
+                log("re-check cancelled by the user");
+                let _ = app.emit("scan:cancelled", ());
+            }
+            Err(ScanEnd::Failed(e)) => {
+                log(&format!("re-check failed: {e}"));
+                let _ = app.emit("scan:error", e);
+            }
+        }
+    });
+    Ok(())
+}
+
 #[tauri::command]
 fn start_scan(typed_name: String, app: AppHandle, state: State<'_, Shared>) -> Result<(), String> {
     let (device, cancel, view_span) = {
@@ -509,14 +671,7 @@ fn start_scan(typed_name: String, app: AppHandle, state: State<'_, Shared>) -> R
                 config.chunk_sectors
             ));
 
-            let mut observer = WindowObserver {
-                app: app.clone(),
-                view: config.range,
-                last_emit: Instant::now(),
-                emitted: 0,
-                last_logged_percent: -100,
-                defects_seen: 0,
-            };
+            let mut observer = WindowObserver::new(app.clone(), config.range);
             let result = Scanner::new(config, cancel).run(&mut raw, &mut observer).map_err(|e| {
                 use salvage_app::scan::ScanError;
                 // The two a user can act on get wording of their own, in their
@@ -562,7 +717,7 @@ fn start_scan(typed_name: String, app: AppHandle, state: State<'_, Shared>) -> R
                 guard.baseline = Some(map.clone());
                 guard.verified_now = true;
                 guard.retention = Some(outcome.retention);
-                remember(&device, &map);
+                remember(&device, &map, (config.nonce, config.pattern));
                 guard.map = Some(map);
                 guard.report = Some(report);
                 let _ = app.emit("scan:done", snapshot);
@@ -1016,6 +1171,7 @@ fn main() {
             list_devices,
             use_remembered,
             release_card,
+            recheck_retention,
             prepare_card,
             select_device,
             start_scan,

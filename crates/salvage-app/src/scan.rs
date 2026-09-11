@@ -290,6 +290,90 @@ pub struct RetentionWindow {
     pub longest_secs: u64,
 }
 
+/// Where one pass sits inside a larger job.
+///
+/// A re-check walks several intervals and reports one bar across all of them,
+/// so a pass needs to know what came before it and how much there is in total.
+/// A full scan passes its own span and the two collapse to the obvious thing.
+#[derive(Debug, Clone, Copy)]
+struct ProgressSpan {
+    /// Sectors already examined by earlier passes of this job.
+    base: u64,
+    /// Sectors the whole job will examine.
+    total: u64,
+}
+
+/// How a block of sectors answered, by verdict.
+///
+/// The scan only ever needs the total, but a re-check needs `foreign` on its
+/// own: a sector with no valid header at all did not merely lose bits, it lost
+/// the whole reference. On a freshly written card that is a defect. Days later
+/// it is more often the sign that something else wrote to the card, and the
+/// two are indistinguishable from inside a single sector.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct VerdictTally {
+    /// Sectors returning exactly what was written to them.
+    pub matched: u64,
+    /// Sectors whose header survived but whose payload did not.
+    pub corrupt: u64,
+    /// Sectors carrying no recognisable header.
+    pub foreign: u64,
+    /// Sectors serving another address's content.
+    pub aliased: u64,
+    /// Sectors that would not read at all.
+    pub unreadable: u64,
+}
+
+impl VerdictTally {
+    /// Everything that was not an exact match.
+    pub const fn defects(&self) -> u64 {
+        self.corrupt + self.foreign + self.aliased + self.unreadable
+    }
+
+    /// Sectors examined.
+    pub const fn total(&self) -> u64 {
+        self.matched + self.defects()
+    }
+
+    fn add(&mut self, other: Self) {
+        self.matched += other.matched;
+        self.corrupt += other.corrupt;
+        self.foreign += other.foreign;
+        self.aliased += other.aliased;
+        self.unreadable += other.unreadable;
+    }
+}
+
+/// What a re-read of an already-written area found.
+pub struct ReverifyOutcome {
+    /// Measured state, over `span` only. Everything else is untested.
+    pub map: SectorMap,
+    /// How many sectors were examined, across every interval.
+    pub sectors_examined: u64,
+    /// How each sector answered.
+    pub tally: VerdictTally,
+    /// How long the pass took.
+    pub elapsed_secs: u64,
+}
+
+impl ReverifyOutcome {
+    /// Whether the pattern this compared against is still on the card.
+    ///
+    /// A sector with no recognisable header lost the reference entirely. One of
+    /// those is a severe but ordinary retention failure — enough bits went for
+    /// the header's own checksum to fail. Most of the area answering that way
+    /// means something else wrote to the card since, and the comparison is
+    /// measuring the difference between two unrelated things.
+    ///
+    /// The two are indistinguishable from here, so this does not guess: it
+    /// reports that the reference is gone and leaves the reading to whoever
+    /// knows what happened to the card.
+    pub fn reference_survived(&self) -> bool {
+        let total = self.tally.total();
+        total > 0 && self.tally.foreign * 2 < total
+    }
+}
+
 /// Runs a scan over a device.
 pub struct Scanner {
     config: ScanConfig,
@@ -341,7 +425,8 @@ impl Scanner {
         // The last sector written is the first one read back, so the gap
         // between the two passes is the shortest wait on the device.
         let verify_started = std::time::Instant::now();
-        self.verify_pass(device, &span, &mut buf, &mut map, observer)?;
+        let within = ProgressSpan { base: 0, total: span.len() };
+        self.verify_pass(device, &span, &mut buf, &mut map, observer, within)?;
         let verify_finished = std::time::Instant::now();
 
         debug_assert!(map.check_invariants().is_ok(), "sector map inconsistent at end of scan");
@@ -353,6 +438,59 @@ impl Scanner {
                 shortest_secs: verify_started.duration_since(write_finished).as_secs(),
                 longest_secs: verify_finished.duration_since(write_started).as_secs(),
             },
+        })
+    }
+
+    /// Re-reads an area written by an earlier scan, without writing anything.
+    ///
+    /// # The question this asks
+    ///
+    /// A scan measures that a cell took the data and gave it back. Run minutes
+    /// after the write — which is all a single pass can manage — it says
+    /// nothing about whether the cell still holds it tomorrow. A worn cell
+    /// answers the first correctly and the second badly, and that is how a card
+    /// passes an inspection and loses files overnight.
+    ///
+    /// Running this days later asks the second question. It needs the nonce and
+    /// pattern kind of the scan that wrote the area, because the expected
+    /// content is computed from them; a `Scanner` built with different ones
+    /// would find every sector foreign and report a healthy card as destroyed.
+    ///
+    /// # What it will not do
+    ///
+    /// It writes nothing, and it approves nothing outside `span`. Sectors
+    /// beyond it stay untested, which is what they are.
+    pub fn reverify<D: BlockDevice, O: ScanObserver>(
+        &self,
+        device: &mut D,
+        spans: &[LbaRange],
+        observer: &mut O,
+    ) -> Result<ReverifyOutcome, ScanError> {
+        let geometry = device.geometry();
+        let full = geometry.full_range();
+        let spans: Vec<LbaRange> =
+            spans.iter().map(|s| s.clamped_to(&full)).filter(|s| !s.is_empty()).collect();
+        let mut map = SectorMap::new(geometry);
+
+        let sector_size = geometry.sector_size() as usize;
+        let mut buf = vec![0u8; sector_size * self.config.chunk_sectors as usize];
+
+        let total: u64 = spans.iter().map(|s| s.len()).sum();
+        let started = std::time::Instant::now();
+
+        let mut tally = VerdictTally::default();
+        let mut done = 0u64;
+        for span in &spans {
+            let within = ProgressSpan { base: done, total };
+            tally.add(self.verify_pass(device, span, &mut buf, &mut map, observer, within)?);
+            done += span.len();
+        }
+
+        Ok(ReverifyOutcome {
+            map,
+            sectors_examined: total,
+            tally,
+            elapsed_secs: started.elapsed().as_secs(),
         })
     }
 
@@ -442,10 +580,12 @@ impl Scanner {
         buf: &mut [u8],
         map: &mut SectorMap,
         observer: &mut O,
-    ) -> Result<(), ScanError> {
+        within: ProgressSpan,
+    ) -> Result<VerdictTally, ScanError> {
         let sector_size = device.geometry().sector_size() as usize;
         let mut done = 0u64;
         let mut defects = 0u64;
+        let mut tally = VerdictTally::default();
 
         for chunk in span.chunks(self.config.chunk_sectors) {
             self.bail_if_cancelled()?;
@@ -455,28 +595,31 @@ impl Scanner {
 
             match device.read_at(chunk.start(), slice) {
                 Ok(()) => {
-                    defects += self.classify_chunk(&chunk, slice, sector_size, map, observer);
+                    let block = self.classify_chunk(&chunk, slice, sector_size, map, observer);
+                    defects += block.defects();
+                    tally.add(block);
                 }
                 Err(_) => {
                     // The whole block failed: isolate the guilty sectors.
-                    let outcome =
+                    let block =
                         self.refine_read(device, &chunk, buf, sector_size, map, observer)?;
-                    defects += outcome;
+                    defects += block.defects();
+                    tally.add(block);
                 }
             }
 
             done += chunk.len();
             let progress = ScanProgress {
                 phase: ScanPhase::Verifying,
-                sectors_done: done,
-                sectors_total: span.len(),
+                sectors_done: within.base + done,
+                sectors_total: within.total,
                 current_lba: chunk.start(),
                 defects_found: defects,
             };
             observer.on_progress(&progress, map);
         }
 
-        Ok(())
+        Ok(tally)
     }
 
     /// Classifies the sectors of a successfully read block.
@@ -491,8 +634,8 @@ impl Scanner {
         sector_size: usize,
         map: &mut SectorMap,
         observer: &mut O,
-    ) -> u64 {
-        let mut defects = 0u64;
+    ) -> VerdictTally {
+        let mut tally = VerdictTally::default();
 
         // Consecutive sectors sharing a verdict are recorded as one run, for
         // defects exactly as for approved area.
@@ -523,18 +666,25 @@ impl Scanner {
         for (i, sector) in data.chunks_exact(sector_size).enumerate() {
             let lba = chunk.start() + i as u64;
             let state = match self.pattern.verify_sector(lba, sector) {
-                SectorVerdict::Match => SectorState::Good,
+                SectorVerdict::Match => {
+                    tally.matched += 1;
+                    SectorState::Good
+                }
                 SectorVerdict::Aliased { actual_lba } => {
                     // Each alias names a different address, so the observation
                     // is recorded per sector even though the run is not.
                     map.record_alias(lba, actual_lba);
-                    defects += 1;
+                    tally.aliased += 1;
                     SectorState::Aliased
                 }
                 // No valid header after a successful write means the sector
                 // lost its content entirely, which is corruption either way.
-                SectorVerdict::Corrupt { .. } | SectorVerdict::Foreign => {
-                    defects += 1;
+                SectorVerdict::Corrupt { .. } => {
+                    tally.corrupt += 1;
+                    SectorState::Corrupt
+                }
+                SectorVerdict::Foreign => {
+                    tally.foreign += 1;
                     SectorState::Corrupt
                 }
             };
@@ -548,7 +698,7 @@ impl Scanner {
             }
         }
         flush(map, observer, run, chunk.end());
-        defects
+        tally
     }
 
     /// Reads, retrying before giving up.
@@ -684,8 +834,9 @@ impl Scanner {
         sector_size: usize,
         map: &mut SectorMap,
         observer: &mut O,
-    ) -> Result<u64, ScanError> {
+    ) -> Result<VerdictTally, ScanError> {
         let mut defects = 0u64;
+        let mut tally = VerdictTally::default();
         let mut queue = vec![(*chunk, 0u32)];
 
         while let Some((range, depth)) = queue.pop() {
@@ -696,7 +847,9 @@ impl Scanner {
 
             match device.read_at(range.start(), slice) {
                 Ok(()) => {
-                    defects += self.classify_chunk(&range, slice, sector_size, map, observer);
+                    let block = self.classify_chunk(&range, slice, sector_size, map, observer);
+                    defects += block.defects();
+                    tally.add(block);
                 }
                 Err(_) if range.len() <= MIN_REFINE_SECTORS || depth >= MAX_REFINE_DEPTH => {
                     // Last chance before condemning: retry the read. If the
@@ -705,17 +858,20 @@ impl Scanner {
                     let bytes = range.len() as usize * sector_size;
                     match self.read_persistent(device, range.start(), &mut buf[..bytes]) {
                         Ok(_) => {
-                            defects += self.classify_chunk(
+                            let block = self.classify_chunk(
                                 &range,
                                 &buf[..bytes],
                                 sector_size,
                                 map,
                                 observer,
                             );
+                            defects += block.defects();
+                            tally.add(block);
                         }
                         Err(_) => {
                             map.mark(range, SectorState::BadRead);
                             defects += range.len();
+                            tally.unreadable += range.len();
                             observer.on_defect(range, SectorState::BadRead);
                         }
                     }
@@ -736,7 +892,7 @@ impl Scanner {
                 }
             }
         }
-        Ok(defects)
+        Ok(tally)
     }
 
     #[inline]
@@ -804,6 +960,133 @@ mod tests {
         let mut card = SimulatedCard::healthy(SS, 4_096);
         let outcome = scan(&mut card);
         assert_eq!(outcome.retention.shortest_secs, 0);
+    }
+
+    /// Reads the span back and hands it over, for tests that need to know
+    /// whether the card's contents changed.
+    fn read_span(card: &mut SimulatedCard, span: LbaRange) -> Vec<u8> {
+        let mut buf = vec![0u8; span.len() as usize * SS as usize];
+        card.read_at(span.start(), &mut buf).expect("the simulated card should read");
+        buf
+    }
+
+    /// A pass over an untouched card finds exactly what the scan left.
+    #[test]
+    fn re_reading_an_untouched_card_finds_nothing_wrong() {
+        let mut card = SimulatedCard::healthy(SS, 4_096);
+        let scanner = Scanner::new(config(), CancellationToken::new());
+        scanner.run(&mut card, &mut SilentObserver).unwrap();
+
+        let span = LbaRange::from_bounds(0, 4_096);
+        let out = scanner.reverify(&mut card, &[span], &mut SilentObserver).unwrap();
+
+        assert_eq!(out.tally.defects(), 0, "an untouched card lost nothing");
+        assert_eq!(out.tally.matched, 4_096);
+        assert!(out.reference_survived());
+    }
+
+    /// The failure the whole thing exists for: the cell took the data, gave it
+    /// back, and later stopped holding it. The header survives, so the sector
+    /// is still recognisably ours — it simply no longer says what was written.
+    #[test]
+    fn a_sector_that_stopped_holding_its_content_is_found() {
+        let mut card = SimulatedCard::healthy(SS, 4_096);
+        let scanner = Scanner::new(config(), CancellationToken::new());
+        scanner.run(&mut card, &mut SilentObserver).unwrap();
+
+        // Flip one late byte in each of three sectors, past the header.
+        for lba in [100u64, 101, 102] {
+            let mut sector = vec![0u8; SS as usize];
+            card.read_at(lba, &mut sector).unwrap();
+            let last = sector.len() - 1;
+            sector[last] ^= 0xFF;
+            card.write_at(lba, &sector).unwrap();
+        }
+
+        let out = scanner
+            .reverify(&mut card, &[LbaRange::from_bounds(0, 4_096)], &mut SilentObserver)
+            .unwrap();
+
+        assert_eq!(out.tally.corrupt, 3, "the three altered sectors should be the defects");
+        assert_eq!(out.tally.foreign, 0, "their headers were left intact");
+        assert!(out.reference_survived(), "three sectors is not a rewritten card");
+        assert_eq!(out.map.state_at(100), Some(SectorState::Corrupt));
+        assert_eq!(out.map.state_at(99), Some(SectorState::Good));
+    }
+
+    /// A card something else wrote to since the scan cannot be re-checked at
+    /// all: the comparison would be against a pattern no longer there, and
+    /// every sector would come back a defect. Saying so is the only honest
+    /// answer, because from here it is indistinguishable from total loss.
+    #[test]
+    fn a_card_written_over_since_the_scan_reports_the_reference_gone() {
+        let mut card = SimulatedCard::healthy(SS, 4_096);
+        let scanner = Scanner::new(config(), CancellationToken::new());
+        scanner.run(&mut card, &mut SilentObserver).unwrap();
+
+        let zeros = vec![0u8; 4_096 * SS as usize];
+        card.write_at(0, &zeros).unwrap();
+
+        let out = scanner
+            .reverify(&mut card, &[LbaRange::from_bounds(0, 4_096)], &mut SilentObserver)
+            .unwrap();
+
+        assert!(!out.reference_survived(), "the pattern is gone; this is not a diagnosis");
+        assert_eq!(out.tally.foreign, 4_096);
+    }
+
+    /// It reads. A re-check that wrote would spend a program/erase cycle on a
+    /// card already suspected of not holding charge, and would destroy the
+    /// reference it exists to compare against.
+    #[test]
+    fn re_reading_writes_nothing() {
+        let mut card = SimulatedCard::healthy(SS, 2_048);
+        let scanner = Scanner::new(config(), CancellationToken::new());
+        scanner.run(&mut card, &mut SilentObserver).unwrap();
+
+        let span = LbaRange::from_bounds(0, 2_048);
+        let before = read_span(&mut card, span);
+        scanner.reverify(&mut card, &[span], &mut SilentObserver).unwrap();
+        let after = read_span(&mut card, span);
+
+        assert!(before == after, "the card changed under a read-only pass");
+    }
+
+    /// Only the approved area is re-read, and nothing outside it may come back
+    /// approved on the strength of a pass that never looked there.
+    #[test]
+    fn nothing_outside_the_span_is_approved() {
+        let mut card = SimulatedCard::healthy(SS, 4_096);
+        let scanner = Scanner::new(config(), CancellationToken::new());
+        scanner.run(&mut card, &mut SilentObserver).unwrap();
+
+        let out = scanner
+            .reverify(&mut card, &[LbaRange::from_bounds(1_000, 2_000)], &mut SilentObserver)
+            .unwrap();
+
+        assert_eq!(out.map.state_at(1_500), Some(SectorState::Good));
+        assert_eq!(out.map.state_at(500), Some(SectorState::Untested));
+        assert_eq!(out.map.state_at(3_000), Some(SectorState::Untested));
+        assert_eq!(out.tally.total(), 1_000);
+    }
+
+    /// Approved area is not always one interval. The ground between two of them
+    /// was condemned by the scan, and re-reading it would spend the user's time
+    /// measuring what is already refused.
+    #[test]
+    fn only_the_intervals_given_are_read() {
+        let mut card = SimulatedCard::healthy(SS, 4_096);
+        let scanner = Scanner::new(config(), CancellationToken::new());
+        scanner.run(&mut card, &mut SilentObserver).unwrap();
+
+        let spans = [LbaRange::from_bounds(0, 500), LbaRange::from_bounds(3_000, 3_400)];
+        let out = scanner.reverify(&mut card, &spans, &mut SilentObserver).unwrap();
+
+        assert_eq!(out.sectors_examined, 900);
+        assert_eq!(out.tally.total(), 900);
+        assert_eq!(out.map.state_at(250), Some(SectorState::Good));
+        assert_eq!(out.map.state_at(3_200), Some(SectorState::Good));
+        assert_eq!(out.map.state_at(1_500), Some(SectorState::Untested), "the gap was skipped");
     }
 
     fn scan(card: &mut SimulatedCard) -> ScanOutcome {

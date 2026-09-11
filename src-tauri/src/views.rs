@@ -75,6 +75,12 @@ pub struct RememberedView {
     /// Whether the card's own partition table was kept, and so whether
     /// releasing it can restore that rather than inventing one.
     can_restore_table: bool,
+    /// Whether the approved area can be read back and compared.
+    ///
+    /// False for a record written before the pattern seed was stored. Without
+    /// it there is no expected content for a sector, and the only honest thing
+    /// is to not offer the check rather than run it against a guess.
+    can_recheck: bool,
 }
 
 impl RememberedView {
@@ -90,6 +96,7 @@ impl RememberedView {
             approved_bytes: counts.good * sector_size,
             defective_bytes: counts.defective() * sector_size,
             can_restore_table: record.table_before.is_some(),
+            can_recheck: record.pattern.is_some() && counts.good > 0,
         }
     }
 }
@@ -316,6 +323,21 @@ pub struct Snapshot {
     /// know before it offers, rather than after the user has typed the device
     /// name into a confirmation.
     verified_now: bool,
+}
+
+/// What a re-read of an already-inspected area found, days later.
+#[derive(Serialize, Clone)]
+pub struct RecheckView {
+    /// How much was re-read.
+    pub examined_bytes: u64,
+    /// How much of it no longer holds what was written.
+    pub lost_bytes: u64,
+    /// How long the pass took.
+    pub elapsed_secs: u64,
+    /// How long the data had been sitting there, which is the whole point.
+    pub age_seconds: Option<u64>,
+    /// Whether every sector still held its content.
+    pub held: bool,
 }
 
 /// An unbroken stretch where nothing came back intact.

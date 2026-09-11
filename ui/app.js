@@ -161,9 +161,18 @@ function renderDeviceDetails(d) {
         defective: humanBytes(d.remembered.defective_bytes),
       }))}</p>` +
       `<p class="remembered-caveat">${escapeHtml(t("remembered.caveat"))}</p>` +
-      `<button id="btn-remembered" class="btn btn-ghost">${escapeHtml(t("remembered.use"))}</button>`;
+      `<button id="btn-remembered" class="btn btn-ghost">${escapeHtml(t("remembered.use"))}</button>` +
+      // Offered only where there is a pattern to compare against. A record from
+      // before that was stored has nothing to check the card's memory with.
+      (d.remembered.can_recheck
+        ? `<p class="remembered-caveat">${escapeHtml(t("recheck.offer"))}</p>` +
+          `<button id="btn-recheck" class="btn btn-ghost">${escapeHtml(t("recheck.button"))}</button>`
+        : "");
     remembered.classList.remove("hidden");
     $("btn-remembered").addEventListener("click", useRemembered);
+    if (d.remembered.can_recheck) {
+      $("btn-recheck").addEventListener("click", recheckRetention);
+    }
   } else {
     remembered.classList.add("hidden");
   }
@@ -584,7 +593,50 @@ $("btn-apply").addEventListener("click", applyPlan);
 $("btn-release").addEventListener("click", releaseCard);
 $("btn-prepare").addEventListener("click", prepareCard);
 
+/* Re-reads the approved area and compares it against what was written there.
+ *
+ * The one question an inspection cannot answer about itself. It writes nothing
+ * — the backend opens the device for reading, so the guarantee is the operating
+ * system's — which is why this asks for no typed name while every other button
+ * on this screen does. */
+async function recheckRetention() {
+  try {
+    await invoke("recheck_retention");
+    setScanning(true);
+    clearFailure();
+    toast(t("recheck.started"), "");
+  } catch (e) {
+    showFailure(t(String(e)));
+  }
+}
+
 listen("scan:progress", (e) => applySnapshot(e.payload));
+
+/* What the card still held. The interval is the measurement: "nothing lost"
+ * means nothing over that span, in that time, and says nothing about longer. */
+listen("recheck:done", (e) => {
+  const r = e.payload;
+  setScanning(false);
+  const when = r.age_seconds == null ? t("remembered.unknownAge") : humanAge(r.age_seconds);
+  if (r.held) {
+    clearFailure();
+    toast(t("recheck.held", { size: humanBytes(r.examined_bytes), when }), "ok");
+  } else {
+    showFailure(t("recheck.lost", {
+      lost: humanBytes(r.lost_bytes),
+      size: humanBytes(r.examined_bytes),
+      when,
+    }));
+  }
+});
+
+/* The comparison was against a pattern that is no longer on the card. Reporting
+ * that as damage would condemn a card that may be perfectly well; from here the
+ * two are indistinguishable, so neither is claimed. */
+listen("recheck:reference-gone", () => {
+  setScanning(false);
+  showFailure(t("recheck.referenceGone"));
+});
 
 listen("scan:done", (e) => {
   setScanning(false);

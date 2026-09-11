@@ -20,6 +20,7 @@ use salvage_core::health::HealthReport;
 use salvage_core::mbr::PriorLayout;
 use salvage_core::planner::PartitionPlan;
 use salvage_core::sector_map::{SectorMap, SectorState};
+use salvage_core::LbaRange;
 use tauri::{AppHandle, Emitter};
 
 use crate::diagnostics::{log, MAX_LOGGED_DEFECTS};
@@ -68,6 +69,23 @@ pub struct WindowObserver {
     pub emitted: u64,
     pub last_logged_percent: i64,
     pub defects_seen: u64,
+}
+
+impl WindowObserver {
+    /// An observer pushing progress at one window.
+    ///
+    /// `view` is the interval the window is drawing, or `None` for the whole
+    /// device. See [`crate::views::build_snapshot`].
+    pub fn new(app: AppHandle, view: Option<LbaRange>) -> Self {
+        Self {
+            app,
+            view,
+            last_emit: Instant::now(),
+            emitted: 0,
+            last_logged_percent: -100,
+            defects_seen: 0,
+        }
+    }
 }
 
 impl ScanObserver for WindowObserver {
