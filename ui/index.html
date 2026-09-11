@@ -304,7 +304,15 @@
 
   <div id="toast" class="toast hidden"></div>
 
+  <!-- Plain scripts, so the order is the dependency graph. i18n first because
+       everything words itself through it; core next, for the shared state and
+       helpers; then the three panels; app.js last, because its final block
+       runs on load and reaches into all of them. -->
   <script src="i18n.js"></script>
+  <script src="core.js"></script>
+  <script src="canvas.js"></script>
+  <script src="modal.js"></script>
+  <script src="layouts.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

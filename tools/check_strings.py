@@ -49,7 +49,12 @@ def main():
 
     # Every ApplyStep the backend can emit must have a case in the window.
     apply_rs = (ROOT / "crates/salvage-win32/src/apply.rs").read_text(encoding="utf-8")
-    app_js = (ROOT / "ui/app.js").read_text(encoding="utf-8")
+    # Every script the window loads, not one by name: the wording for a step
+    # lives wherever that step is handled, and moving it must not quietly take
+    # it out of this check.
+    app_js = "\n".join(
+        p.read_text(encoding="utf-8") for p in sorted((ROOT / "ui").glob("*.js"))
+    )
     for variant in enum_variants(apply_rs, "ApplyStep"):
         if f'case "{snake(variant)}"' not in app_js:
             problems.append(f"ApplyStep::{variant} has no case in stepMessage()")

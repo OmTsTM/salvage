@@ -24,8 +24,12 @@ Usage:
 import os, re
 html = open('ui/index.html', encoding='utf-8').read()
 css  = open('ui/style.css', encoding='utf-8').read()
-i18n = open('ui/i18n.js', encoding='utf-8').read()
-app  = open('ui/app.js', encoding='utf-8').read()
+
+# The scripts, in the order the window itself loads them. Read off the page
+# rather than listed here: the window is five files now and was two, and a
+# harness carrying its own copy of that list renders a page the program does
+# not have.
+SCRIPTS = re.findall(r'<script src="([^"]+\.js)"></script>', html)
 
 # Enough of a Tauri surface for app.js to initialise without throwing.
 stub = """
@@ -106,11 +110,16 @@ setTimeout(() => {
 }, 700);
 """
 
+inlined = '\n'.join(
+    '<script>' + open('ui/' + name, encoding='utf-8').read() + '</script>'
+    for name in SCRIPTS
+)
+
 html = html.replace('<link rel="stylesheet" href="style.css" />', '<style>\n' + css + '\n</style>')
 html = re.sub(r'<script src="[^"]*\.js"></script>', '', html)
 html = html.replace('</body>',
-                    '<script>' + stub + '</script>\n<script>' + i18n + '</script>\n'
-                    '<script>' + app + '</script>\n<script>' + drive + '</script>\n</body>')
+                    '<script>' + stub + '</script>\n' + inlined +
+                    '\n<script>' + drive + '</script>\n</body>')
 out = os.path.join(os.environ.get('TEMP', '/tmp'), 'harness.html')
 open(out, 'w', encoding='utf-8').write(html)
 print(out)
