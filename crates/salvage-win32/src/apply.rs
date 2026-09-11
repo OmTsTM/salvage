@@ -199,11 +199,12 @@ fn format_volume(
     if !letter.is_ascii_alphabetic() {
         return Err(ApplyError::FormatFailed { letter, detail: "invalid drive letter".into() });
     }
-    let safe_label: String = label
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
-        .take(11)
-        .collect();
+    // The same mapping the FAT32 writer applies, and for the same reason: a
+    // volume name has to survive to the card unchanged by which code path
+    // happened to write it. Characters outside the safe set become an
+    // underscore rather than vanishing — dropping the space in "CARTAO OK"
+    // yields "CARTAOOK", which is a different word.
+    let safe_label: String = label.chars().take(11).map(sanitise_label_char).collect();
 
     let format_exe = sys::system_executable("format.com")
         .map_err(|e| ApplyError::FormatFailed { letter, detail: e.to_string() })?;
@@ -412,11 +413,16 @@ pub fn prepare_card(
         steps.extend(problems.into_iter().map(ApplyStep::VolumeWarning));
     }
 
-    // Kept before it stops existing, so preparing a card is as reversible as
-    // fencing one.
-    let mut first_sector = vec![0u8; sector_size as usize];
-    let table_before =
-        dev.read_at(0, &mut first_sector).ok().map(|()| first_sector[..MBR_SIZE].to_vec());
+    // Deliberately nothing. Fencing keeps the table it overwrites, because that
+    // table is the way back to the card's own layout — but there is no such
+    // table here. The inspection wrote its pattern over every sector including
+    // sector 0, so what sits there now is pattern, not a partition table.
+    //
+    // Keeping it would do worse than nothing: a record holds the first table it
+    // is given and never replaces it, so 512 bytes of pattern would take the
+    // slot that a later fencing needs, and releasing the card afterwards would
+    // restore garbage instead of the volume this function just created.
+    let table_before = None;
 
     // Windows will not make a FAT32 volume this large, so it is made here.
     let own_filesystem = writes_own_filesystem(filesystem, &area, sector_size);
@@ -547,6 +553,18 @@ pub fn release_card(
     Ok(ApplyOutcome { steps, data_volume_letter: letter, table_before: None })
 }
 
+/// One character of a volume name, as both filesystems will accept it.
+///
+/// Shared with [`salvage_core::fat32`], which applies the same mapping when it
+/// writes the label into the boot sector itself. Two rules would mean the same
+/// typed name reaching the card differently depending on the card's size.
+fn sanitise_label_char(c: char) -> char {
+    match c {
+        'A'..='Z' | 'a'..='z' | '0'..='9' | '_' | '-' => c,
+        _ => '_',
+    }
+}
+
 /// Whether this program writes the filesystem itself rather than asking Windows.
 ///
 /// Only where Windows would refuse. `format.com` is the better-travelled path
@@ -615,6 +633,26 @@ mod tests {
             geometry: DeviceGeometry::new(512, 1_000_000).unwrap(),
             volumes: vec![],
         }
+    }
+
+    /// The two code paths that write a volume name must spell it the same way.
+    ///
+    /// `salvage_core::fat32::encode_label` applies this mapping when this
+    /// program writes the filesystem itself; this side applies it when Windows
+    /// does. They diverged once — one dropped the offending character and the
+    /// other replaced it — so the same typed name produced "CARTAOOK" on a
+    /// small card and "CARTAO_OK" on a large one.
+    #[test]
+    fn a_space_becomes_an_underscore_rather_than_disappearing() {
+        let mapped: String = "CARTAO OK".chars().map(sanitise_label_char).collect();
+        assert_eq!(mapped, "CARTAO_OK");
+    }
+
+    #[test]
+    fn a_label_keeps_only_what_both_filesystems_accept() {
+        let mapped: String = r"a/b:c\d*e".chars().map(sanitise_label_char).collect();
+        assert_eq!(mapped, "a_b_c_d_e", "punctuation a filesystem refuses must not reach it");
+        assert_eq!("Ok-9_".chars().map(sanitise_label_char).collect::<String>(), "Ok-9_");
     }
 
     /// The boundary this exists for. `format.com` refuses FAT32 above 32 GB,

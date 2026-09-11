@@ -1149,8 +1149,10 @@ async function prepareCard() {
     });
 
     const steps = result.steps.map((x) => `<li>${escapeHtml(stepMessage(x))}</li>`).join("");
+    // Its own wording, not the one fencing uses. "The reliable area is at F:"
+    // describes a volume carved out of a card; here the volume is the card.
     const where = result.drive_letter
-      ? `<p>${t("apply.where", { letter: escapeHtml(result.drive_letter) })}</p>`
+      ? `<p>${t("prepare.where", { letter: escapeHtml(result.drive_letter) })}</p>`
       : "";
     resetModalChrome();
     $("modal-title").textContent = t("prepare.doneTitle");

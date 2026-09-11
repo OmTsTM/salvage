@@ -236,6 +236,7 @@ const I18N = (() => {
         "O cartão ficará com um único volume {fs} cobrindo toda a capacidade, " +
         "com o nome {label}.",
       "prepare.working": "Formatando…",
+      "prepare.where": "O cartão inteiro está disponível em {letter}:",
       "prepare.doneTitle": "Cartão pronto",
       "prepare.done": "Cartão formatado.",
       "err.not_pristine":
@@ -626,6 +627,7 @@ const I18N = (() => {
       "prepare.willWrite":
         "The card will carry one {fs} volume spanning its full capacity, named {label}.",
       "prepare.working": "Formatting…",
+      "prepare.where": "The whole card is available at {letter}:",
       "prepare.doneTitle": "Card ready",
       "prepare.done": "Card formatted.",
       "err.not_pristine":
@@ -1023,6 +1025,7 @@ const I18N = (() => {
         "La tarjeta quedará con un único volumen {fs} que abarca toda su capacidad, " +
         "con el nombre {label}.",
       "prepare.working": "Formateando…",
+      "prepare.where": "La tarjeta entera está disponible en {letter}:",
       "prepare.doneTitle": "Tarjeta lista",
       "prepare.done": "Tarjeta formateada.",
       "err.not_pristine":
@@ -1389,6 +1392,7 @@ const I18N = (() => {
       "prepare.warning": "这将在 {name} 上写入新的分区表。",
       "prepare.willWrite": "这张卡将只有一个覆盖全部容量的 {fs} 卷，名称为 {label}。",
       "prepare.working": "正在格式化……",
+      "prepare.where": "整张卡都可以在 {letter}: 使用。",
       "prepare.doneTitle": "卡已就绪",
       "prepare.done": "卡已格式化。",
       "err.not_pristine":
