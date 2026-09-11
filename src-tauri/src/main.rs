@@ -670,7 +670,7 @@ impl ScanObserver for WindowObserver {
             Ok(()) => self.emitted += 1,
             // If the event never reaches the window, the interface sits still
             // while the scan runs normally. That needs to be known.
-            Err(e) => log(&format!("FALHA ao emitir progresso: {e}")),
+            Err(e) => log(&format!("failed to emit progress: {e}")),
         }
     }
 
@@ -754,7 +754,7 @@ fn consent_key(e: &salvage_app::safety::ConfirmationError) -> &'static str {
 #[tauri::command]
 fn list_devices(state: State<'_, Shared>) -> Result<Vec<DeviceView>, String> {
     let devices = WindowsDeviceEnumerator::new().enumerate().map_err(|e| {
-        log(&format!("FALHA ao enumerar: {e}"));
+        log(&format!("failed to enumerate devices: {e}"));
         err::ENUMERATE.to_string()
     })?;
     log(&format!("{} devices found", devices.len()));
@@ -1133,7 +1133,7 @@ fn start_scan(typed_name: String, app: AppHandle, state: State<'_, Shared>) -> R
                 let _ = app.emit("scan:cancelled", ());
             }
             Err(ScanEnd::Failed(message)) => {
-                log(&format!("ERRO: {message}"));
+                log(&format!("error: {message}"));
                 let _ = app.emit("scan:error", message);
             }
         }
@@ -1353,8 +1353,32 @@ fn apply(
         _ => FileSystem::ExFat,
     };
 
-    let outcome = apply_plan(&device, &plan, &map, &consent, filesystem, &label)
-        .map_err(|e| e.to_string())?;
+    // The one destructive write that left no trace. A 0.5.6 log showed a card
+    // reporting "carries no layout of ours", then a layout appearing out of
+    // nowhere thirty-nine seconds later, because a successful repartitioning
+    // wrote nothing here — only a refused one did. A file whose purpose is to
+    // explain a failure after the fact has to record the operation most likely
+    // to have caused it.
+    log(&format!(
+        "applying {:?} to {} as {}: {} visible, {} hidden, {} usable, {} to margin",
+        plan.strategy,
+        device.path,
+        filesystem.format_name(),
+        plan.data_partitions().count(),
+        plan.partitions.len() - plan.data_partitions().count(),
+        plan.usable_bytes,
+        plan.sacrificed_bytes
+    ));
+
+    let outcome = apply_plan(&device, &plan, &map, &consent, filesystem, &label).map_err(|e| {
+        log(&format!("apply failed: {e}"));
+        e.to_string()
+    })?;
+    log(&format!(
+        "layout written to {}{}",
+        device.path,
+        outcome.data_volume_letter.map_or(String::new(), |l| format!(", mounted at {l}:"))
+    ));
 
     if let Some(table) = outcome.table_before.as_deref() {
         remember_table(&device, table);

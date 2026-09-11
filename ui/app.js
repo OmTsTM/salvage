@@ -46,13 +46,13 @@ const STATE_COLORS = [
  * coloured map. Each state gets its own weave, and the legend shows the same
  * weave beside the name, so the map reads in greyscale. */
 const STATE_TEXTURES = [
-  "dots",       // não conferido — poeira esparsa, "sem informação"
-  "solid",      // íntegro — cheio, sem ruído
-  "diag-back",  // erro de leitura
-  "diag-fwd",   // erro de gravação
-  "cross",      // conteúdo alterado — trama densa
-  "checker",    // dado de outro endereço
-  "horiz",      // isolado: margem de segurança ou layout anterior
+  "dots",       // untested — sparse dust, "no information"
+  "solid",      // intact — filled, no noise
+  "diag-back",  // read error
+  "diag-fwd",   // write error
+  "cross",      // altered content — a dense weave
+  "checker",    // another address's data
+  "horiz",      // fenced: guard band, or an earlier layout
 ];
 
 /* Pattern cache: rebuilding these per frame would be costly in the draw loop. */
@@ -255,13 +255,14 @@ window.addEventListener("unhandledrejection", (e) => {
 
 const state = {
   rate: null,        // { phase, t0, sectors0 }, to estimate the time left
-  watchdog: null,    // catches a scan that starts and reports no progress
+  watchdog: null,    // catches a scan whose progress events stop arriving
   devices: [],
   selected: null,
   lastSnapshot: null,
   plans: [],
   selectedPlan: null,
   scanning: false,
+  watchdogAlarmed: false,   // so the alarm can be withdrawn, and only that alarm
 };
 
 const $ = (id) => document.getElementById(id);
@@ -694,7 +695,16 @@ function resetResults() {
 function applySnapshot(snap) {
   state.lastSnapshot = snap;
   $("stage-idle").classList.add("hidden");
-  if (snap.scanning) armWatchdog();
+  if (snap.scanning) {
+    armWatchdog();
+    // Progress is the answer to the only question the watchdog asks. Left
+    // standing, its banner sat beside a live progress bar for the rest of the
+    // scan, the two saying opposite things about the same run.
+    if (state.watchdogAlarmed) {
+      state.watchdogAlarmed = false;
+      clearFailure();
+    }
+  }
 
   drawBuckets(snap.buckets, snap.fraction, snap.approved_marks, snap.phase);
   renderLegend(snap.counts, snap.sector_size, snap.phase);
@@ -840,15 +850,42 @@ function renderReport(r) {
 
 /* The scan runs on a backend thread. If it dies, stalls, or its events stop
  * arriving, the window would sit at "waiting" forever — exactly the symptom
- * that motivated this watchdog. Twenty seconds is generous even for the first
- * block of a slow card. */
+ * that motivated this watchdog. Progress arrives every 120 ms, so twenty
+ * seconds of silence is abnormal even on the slowest card. */
 const WATCHDOG_SECONDS = 20;
+
+/* How late a timer may fire and still be believed.
+ *
+ * A timer that fires two seconds late lost a race with a busy main thread. One
+ * that fires twenty minutes late did not measure twenty minutes of silence —
+ * it was not running, and observed nothing at all. That happens whenever the
+ * machine suspends, and a scan of a large card is exactly the thing left
+ * running overnight: the timer is deferred until the machine wakes, then fires
+ * at once, and the window would accuse a healthy scan of having stopped.
+ *
+ * This is what a 0.5.6 log recorded. A 33 GB card stalled for 1,243 s between
+ * two defect lines, the alarm fired at the end of that gap rather than twenty
+ * seconds into it, and the scan then resumed on the very next block at its
+ * normal pace. Nothing had gone wrong; the window had simply been asleep. */
+const WATCHDOG_TOLERANCE_MS = 2000;
 
 function armWatchdog() {
   clearTimeout(state.watchdog);
+  const deadline = Date.now() + WATCHDOG_SECONDS * 1000;
   state.watchdog = setTimeout(() => {
     if (!state.scanning) return;
-    report("vigia: nenhum evento de andamento apos o inicio da varredura");
+
+    // The clock is the witness, not the timer. If the callback arrives far
+    // past its own deadline, the interval it was meant to measure went
+    // unobserved, so the scan gets a fresh window to prove it is alive.
+    if (Date.now() - deadline > WATCHDOG_TOLERANCE_MS) {
+      report("watchdog fired long after its deadline; the window was not running");
+      armWatchdog();
+      return;
+    }
+
+    state.watchdogAlarmed = true;
+    report(`watchdog: no progress event in ${WATCHDOG_SECONDS}s`);
     showFailure(t("scan.watchdog", { n: WATCHDOG_SECONDS }));
   }, WATCHDOG_SECONDS * 1000);
 }

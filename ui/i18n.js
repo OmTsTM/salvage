@@ -305,8 +305,9 @@ const I18N = (() => {
       "scan.cancelled": "Inspeção cancelada.",
       "scan.done": "Inspeção concluída.",
       "scan.watchdog":
-        "A inspeção foi iniciada mas não reportou andamento em {n}s. Consulte o arquivo de " +
-        "diagnóstico indicado no rodapé.",
+        "A inspeção está há {n}s sem reportar andamento. Um cartão brigando com uma " +
+        "região ruim pode travar assim e se recuperar; se não se recuperar, o arquivo " +
+        "de diagnóstico indicado no rodapé diz onde ela parou.",
 
       "apply.confirmTitle": "Confirmar reparticionamento",
       "apply.erases":
@@ -696,8 +697,9 @@ const I18N = (() => {
       "scan.cancelled": "Inspection cancelled.",
       "scan.done": "Inspection complete.",
       "scan.watchdog":
-        "The inspection started but reported no progress within {n}s. Check the diagnostic " +
-        "file named in the status bar.",
+        "The inspection has reported no progress for {n}s. A card fighting a bad region " +
+        "can stall this long and recover; if it does not, the diagnostic file named in " +
+        "the status bar says where it stopped.",
 
       "apply.confirmTitle": "Confirm repartitioning",
       "apply.erases":
@@ -1094,8 +1096,9 @@ const I18N = (() => {
       "scan.cancelled": "Inspección cancelada.",
       "scan.done": "Inspección terminada.",
       "scan.watchdog":
-        "La inspección se inició pero no informó de ningún avance en {n}s. Consulte el " +
-        "archivo de diagnóstico indicado en la barra de estado.",
+        "La inspección lleva {n}s sin reportar avance. Una tarjeta peleando con una " +
+        "región dañada puede detenerse así y recuperarse; si no lo hace, el archivo de " +
+        "diagnóstico indicado en la barra de estado dice dónde se detuvo.",
 
       "apply.confirmTitle": "Confirmar reparticionado",
       "apply.erases":
@@ -1439,7 +1442,9 @@ const I18N = (() => {
       "scan.warningTitle": "注意：",
       "scan.cancelled": "检测已取消。",
       "scan.done": "检测完成。",
-      "scan.watchdog": "检测已启动，但 {n} 秒内没有报告任何进度。请查看状态栏中标明的诊断文件。",
+      "scan.watchdog":
+        "检测已有 {n} 秒未报告进度。正在与损坏区域较劲的卡可能这样停顿后恢复；" +
+        "若未恢复，状态栏中标明的诊断文件会说明它停在哪里。",
 
       "apply.confirmTitle": "确认重新分区",
       "apply.erases": "此操作会清除 {name} 上的全部内容，并写入新的分区表。",
