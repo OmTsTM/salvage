@@ -32,6 +32,30 @@ layer remaps logical addresses to physical cells on every write, so no software
 can promise that today's mapping holds tomorrow. A test
 (`assurance_never_claims_a_guarantee`) fails the build if such wording returns.
 
+## Remembered results
+
+A card's sector map is stored after an inspection, under
+`%LOCALAPPDATA%\Salvage\cards`, keyed to the card's fingerprint.
+
+**A record is never a certificate.** It describes hardware as it was, and flash
+degrades. Adopting one restores the picture and the planning and approves
+nothing: the apply path refuses to write a data partition from a map that was
+not verified in the current session, and says so rather than proceeding.
+
+Records are matched on the fingerprint stored inside them, not on the filename,
+so a digest collision or an edited file is refused rather than applied to the
+wrong card.
+
+## Releasing a card
+
+Removing a layout restores the partition table the card arrived with, captured
+the first time this program overwrote one. It requires the same typed consent as
+any other destructive operation.
+
+It restores capacity, which on a failing card is exactly what fencing existed to
+withhold. The confirmation states that it removes the protection rather than the
+damage, and that the inspection cannot be undone.
+
 ## Operational safety
 
 - **Destructive operations require typing the device name.** Consent is a type

@@ -200,6 +200,39 @@ const I18N = (() => {
         "{size} de área aprovada ficam de fora por margem de segurança e alinhamento de bloco.",
       "plan.fencedToast": "{size} de área aprovada ficaram cercados pela margem de segurança.",
       "legend.written": "Gravado, aguardando conferência",
+      "age.underHour": "há menos de uma hora",
+      "age.hours": "há {n} h",
+      "age.days": "há {n} dias",
+      "age.months": "há cerca de {n} meses",
+      "remembered.title": "Este cartão já foi inspecionado",
+      "remembered.body":
+        "Medido {when}: {approved} íntegros, {defective} defeituosos. Adotar esse " +
+        "resultado traz o diagnóstico e os layouts de volta sem varrer o cartão outra vez.",
+      "remembered.caveat":
+        "Um registro diz onde procurar, não que a área continua boa. Aplicar " +
+        "qualquer layout ainda exige uma inspeção feita agora.",
+      "remembered.use": "Usar o resultado guardado",
+      "remembered.adopted": "Resultado guardado adotado. Aplicar um layout ainda pede nova inspeção.",
+      "remembered.unknownAge": "em data desconhecida",
+      "release.button": "Liberar o cartão",
+      "release.confirmTitle": "Confirmar liberação do cartão",
+      "release.warning":
+        "Isto reescreve a tabela de partições de {name} e devolve a capacidade total.",
+      "release.explain":
+        "Não desfaz a inspeção: o padrão foi gravado em todos os setores muito " +
+        "antes de existir qualquer layout, e o conteúdo original foi junto. O que " +
+        "isto remove é a proteção, não o dano — o cartão volta a aceitar arquivos " +
+        "na área condenada e a perdê-los em silêncio.",
+      "release.restores": "A tabela original do cartão foi guardada e será restaurada.",
+      "release.invents":
+        "A tabela original não foi guardada, então o cartão receberá uma partição " +
+        "única cobrindo toda a capacidade.",
+      "release.doneTitle": "Cartão liberado",
+      "err.nothing_remembered": "Não há resultado guardado para este cartão.",
+      "err.remembered_other_card": "O resultado guardado pertence a outro cartão.",
+      "err.stale_map":
+        "O mapa em uso veio de uma sessão anterior e descreve o cartão como ele " +
+        "estava. Rode a inspeção antes de aplicar um layout.",
       "plan.cannot": "Não há como particionar este cartão.",
       "refusal.lead":
         "A área aprovada existe, mas está fragmentada. Uma partição ocupa um " +
@@ -531,6 +564,39 @@ const I18N = (() => {
         "{size} of approved area is kept out by the guard band and block alignment.",
       "plan.fencedToast": "{size} of approved area ended up fenced by the guard band.",
       "legend.written": "Written, awaiting verification",
+      "age.underHour": "under an hour ago",
+      "age.hours": "{n} h ago",
+      "age.days": "{n} days ago",
+      "age.months": "about {n} months ago",
+      "remembered.title": "This card has been inspected before",
+      "remembered.body":
+        "Measured {when}: {approved} intact, {defective} defective. Adopting that " +
+        "result brings the diagnosis and the layouts back without scanning the card again.",
+      "remembered.caveat":
+        "A record says where to look, not that the area is still good. Applying " +
+        "any layout still requires an inspection run now.",
+      "remembered.use": "Use the stored result",
+      "remembered.adopted": "Stored result adopted. Applying a layout still needs a fresh inspection.",
+      "remembered.unknownAge": "at an unknown date",
+      "release.button": "Release the card",
+      "release.confirmTitle": "Confirm releasing the card",
+      "release.warning":
+        "This rewrites the partition table of {name} and gives back its full capacity.",
+      "release.explain":
+        "It does not undo the inspection: the pattern went over every sector long " +
+        "before any layout existed, and the original contents went with it. What " +
+        "this removes is the protection, not the damage — the card will accept " +
+        "files in the condemned area again, and lose them silently.",
+      "release.restores": "The card's own table was kept and will be restored.",
+      "release.invents":
+        "No original table was kept, so the card will be given a single partition " +
+        "spanning its full capacity.",
+      "release.doneTitle": "Card released",
+      "err.nothing_remembered": "There is no stored result for this card.",
+      "err.remembered_other_card": "The stored result belongs to another card.",
+      "err.stale_map":
+        "The working map came from an earlier session and describes the card as it " +
+        "was. Run the inspection before applying a layout.",
       "plan.cannot": "This card cannot be partitioned.",
       "refusal.lead":
         "The approved area is real, but it is in pieces. A partition occupies a " +
@@ -868,6 +934,39 @@ const I18N = (() => {
       "plan.fencedToast":
         "{size} de área aprobada quedaron cercados por el margen de seguridad.",
       "legend.written": "Escrito, pendiente de verificación",
+      "age.underHour": "hace menos de una hora",
+      "age.hours": "hace {n} h",
+      "age.days": "hace {n} días",
+      "age.months": "hace unos {n} meses",
+      "remembered.title": "Esta tarjeta ya fue inspeccionada",
+      "remembered.body":
+        "Medida {when}: {approved} íntegros, {defective} defectuosos. Adoptar ese " +
+        "resultado devuelve el diagnóstico y los diseños sin volver a escanear la tarjeta.",
+      "remembered.caveat":
+        "Un registro dice dónde mirar, no que el área siga buena. Aplicar cualquier " +
+        "diseño sigue exigiendo una inspección hecha ahora.",
+      "remembered.use": "Usar el resultado guardado",
+      "remembered.adopted": "Resultado guardado adoptado. Aplicar un diseño aún requiere una inspección nueva.",
+      "remembered.unknownAge": "en fecha desconocida",
+      "release.button": "Liberar la tarjeta",
+      "release.confirmTitle": "Confirmar la liberación de la tarjeta",
+      "release.warning":
+        "Esto reescribe la tabla de particiones de {name} y devuelve su capacidad total.",
+      "release.explain":
+        "No deshace la inspección: el patrón se escribió en todos los sectores mucho " +
+        "antes de que existiera ningún diseño, y el contenido original se fue con él. " +
+        "Lo que esto quita es la protección, no el daño: la tarjeta volverá a aceptar " +
+        "archivos en el área condenada y a perderlos en silencio.",
+      "release.restores": "La tabla propia de la tarjeta se guardó y será restaurada.",
+      "release.invents":
+        "No se guardó ninguna tabla original, así que la tarjeta recibirá una partición " +
+        "única que abarca toda su capacidad.",
+      "release.doneTitle": "Tarjeta liberada",
+      "err.nothing_remembered": "No hay resultado guardado para esta tarjeta.",
+      "err.remembered_other_card": "El resultado guardado pertenece a otra tarjeta.",
+      "err.stale_map":
+        "El mapa en uso viene de una sesión anterior y describe la tarjeta como estaba. " +
+        "Ejecute la inspección antes de aplicar un diseño.",
       "plan.cannot": "Esta tarjeta no se puede particionar.",
       "refusal.lead":
         "El área aprobada existe, pero está fragmentada. Una partición ocupa un " +
@@ -1184,6 +1283,29 @@ const I18N = (() => {
       "plan.sacrificed": "有 {size} 的合格区域因安全边界和块对齐而未被使用。",
       "plan.fencedToast": "有 {size} 的合格区域被安全边界圈了进去。",
       "legend.written": "已写入，等待校验",
+      "age.underHour": "不到一小时前",
+      "age.hours": "{n} 小时前",
+      "age.days": "{n} 天前",
+      "age.months": "约 {n} 个月前",
+      "remembered.title": "这张卡此前已检测过",
+      "remembered.body":
+        "检测于{when}：完好 {approved}，损坏 {defective}。采用该结果可直接恢复诊断与布局，无需重新扫描整张卡。",
+      "remembered.caveat":
+        "记录只说明该看哪里，并不证明那片区域仍然完好。应用任何布局仍需现在重新检测。",
+      "remembered.use": "使用已保存的结果",
+      "remembered.adopted": "已采用保存的结果。应用布局仍需重新检测。",
+      "remembered.unknownAge": "日期未知",
+      "release.button": "释放这张卡",
+      "release.confirmTitle": "确认释放这张卡",
+      "release.warning": "这将重写 {name} 的分区表，并恢复其全部容量。",
+      "release.explain":
+        "这不会撤销检测：在任何布局存在之前，图案就已写入每一个扇区，原有内容也随之消失。它移除的是保护而非损坏——这张卡会再次在已判废区域接受文件，并悄悄丢失它们。",
+      "release.restores": "已保存这张卡原本的分区表，将予以恢复。",
+      "release.invents": "未保存原始分区表，因此将为这张卡创建一个覆盖全部容量的单一分区。",
+      "release.doneTitle": "卡已释放",
+      "err.nothing_remembered": "这张卡没有已保存的结果。",
+      "err.remembered_other_card": "保存的结果属于另一张卡。",
+      "err.stale_map": "当前使用的映射来自上一次会话，描述的是当时的状态。请先运行检测，再应用布局。",
       "plan.cannot": "这张卡无法分区。",
       "refusal.lead":
         "合格区域确实存在，但被打散了。分区占用一段连续的扇区，而每种机制都有一个最小尺寸，没有任何一段能达到。",

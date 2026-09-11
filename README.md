@@ -236,6 +236,37 @@ run: an earlier pass settled them, and there is nothing to learn there again.
 That is the whole claim, and its limit: the tool does not repair anything. It
 finds what still works, proves it, and puts a boundary around it.
 
+### Going back, and not starting over
+
+Fencing was a one-way door: a card given a layout was limited to the sliver that
+survived, permanently. Two things address that, and both are shaped by the same
+rule as everything else.
+
+**Releasing a card** restores its full capacity. The table it arrived with is
+captured the first time this program overwrites one — 512 bytes, kept beside the
+log — so the way back leads to the card's own layout rather than a guess at it.
+
+It is not an undo. The pattern went over every sector long before any layout
+existed, so the original contents are gone either way; and what it removes is
+the *protection*, not the damage. A card fenced because most of it is dead comes
+back as one full-size volume that will accept files and lose them. That is a
+legitimate thing to want — to re-inspect the whole card differently, to try
+another tool, to be rid of it — and the confirmation says exactly that before
+asking.
+
+**Remembering a card** stores the sector map after an inspection, keyed to the
+card's fingerprint. Re-selecting it later shows what was found and how long ago,
+and adopting that record brings the diagnosis and the layouts back without
+repeating the hours.
+
+A record is **a map of where to look, never a certificate**. Adopting one
+approves nothing: `verified_now` stays false, and the apply path refuses to
+write a data partition until the area has been read back today. That
+re-verification is not a weaker scan — it is the same test aimed only at the
+sectors about to be used. A defect that appeared outside the approved area
+changes nothing, because that area was already condemned; a defect that appeared
+inside it is precisely what the re-verification finds.
+
 ### The invariant everything rests on
 
 > No user data may ever land on a sector that was not explicitly approved.
@@ -369,13 +400,15 @@ crates/salvage-app/      Use cases and ports. No OS dependency.
    device.rs             BlockDevice / DeviceEnumerator traits
    safety.rs             Guards and destructive consent
    scan.rs               Scanning, classification, bisection
+   history.rs            What is remembered about a card, and what that is worth
    simulator.rs          In-memory card with programmable defects
 
 crates/salvage-win32/    The only crate containing unsafe.
    sys.rs                Thin wrappers over the Windows API
    raw_device.rs         Unbuffered raw sector access
    enumerate.rs          Disk and volume discovery
-   apply.rs              Partition table writing and formatting
+   apply.rs              Partition table writing, formatting and release
+   history.rs            Card records on disk
 
 src-tauri/               Bridge to the window. No business rules.
 ui/                      HTML, CSS and Canvas. Four languages.

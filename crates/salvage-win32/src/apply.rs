@@ -73,6 +73,12 @@ pub enum ApplyStep {
         /// Bytes the volume will actually offer.
         usable_bytes: u64,
     },
+    /// The partition table the card arrived with was put back.
+    TableRestored {
+        /// Whether it was the card's own table, or a full-capacity one made
+        /// because none had been kept.
+        from_card: bool,
+    },
     /// The data partition was formatted.
     Formatted {
         /// Drive letter formatted.
@@ -116,6 +122,12 @@ pub struct ApplyOutcome {
     pub steps: Vec<ApplyStep>,
     /// Drive letter assigned to the data partition, when Windows mounted it.
     pub data_volume_letter: Option<char>,
+    /// The table the card carried before this operation overwrote it.
+    ///
+    /// Returned so the caller can keep it: it is what makes the fencing
+    /// reversible, and the only moment it can be read is just before it stops
+    /// existing.
+    pub table_before: Option<Vec<u8>>,
 }
 
 /// Derives a disk signature from the device's identity.
@@ -272,6 +284,10 @@ pub fn apply_plan(
     steps.extend(
         describe_change(previous.as_ref(), &new_mbr).into_iter().map(ApplyStep::TableChanged),
     );
+    // Handed back so the caller can remember it. Without this, fencing is a
+    // one-way door: the card can be given a layout but never returned to the
+    // one it arrived with.
+    let table_before = first_sector[..MBR_SIZE].to_vec();
 
     // 5. Wipe the head of each data partition so no stale filesystem is
     //    recognised over the new layout.
@@ -328,7 +344,11 @@ pub fn apply_plan(
 
     let Some(letter) = letter else {
         steps.push(ApplyStep::MountTimedOut);
-        return Ok(ApplyOutcome { steps, data_volume_letter: None });
+        return Ok(ApplyOutcome {
+            steps,
+            data_volume_letter: None,
+            table_before: Some(table_before),
+        });
     };
 
     steps.push(ApplyStep::VolumeMounted { letter });
@@ -339,7 +359,96 @@ pub fn apply_plan(
         steps.push(format_volume(letter, filesystem, label)?);
     }
 
-    Ok(ApplyOutcome { steps, data_volume_letter: Some(letter) })
+    Ok(ApplyOutcome { steps, data_volume_letter: Some(letter), table_before: Some(table_before) })
+}
+
+/// Removes this program's layout and gives the card back.
+///
+/// # What this does and does not undo
+///
+/// It restores a partition table. It does not restore data: the inspection
+/// wrote a pattern over every sector long before any layout existed, and the
+/// card's original contents went with it.
+///
+/// More importantly, it removes the protection rather than the damage. A card
+/// fenced because 99.9% of it is dead comes back as one full-capacity volume
+/// that will accept files and lose them. That is a legitimate thing to want —
+/// to re-inspect the whole card differently, to try another tool, to be rid of
+/// it — but it is what the caller is choosing, and the wording around this
+/// function should say so.
+///
+/// `table_before` is the table the card carried when this program first wrote
+/// one, if it was kept. Without it the card is given a single partition
+/// spanning its full capacity, which is what almost every card ships with.
+pub fn release_card(
+    device: &DeviceInfo,
+    consent: &DestructiveConsent,
+    table_before: Option<&[u8]>,
+    filesystem: FileSystem,
+    label: &str,
+) -> Result<ApplyOutcome, ApplyError> {
+    if !consent.matches(device) {
+        return Err(ApplyError::ConsentMismatch);
+    }
+
+    let mut steps = Vec::new();
+    let sector_size = device.geometry.sector_size() as usize;
+
+    // Either the table the card arrived with, or a single partition over
+    // everything it reports.
+    let restored = match table_before {
+        Some(bytes) if bytes.len() >= MBR_SIZE => MasterBootRecord::from_bytes(&bytes[..MBR_SIZE])?,
+        _ => MasterBootRecord::single_partition(
+            &device.geometry,
+            filesystem,
+            disk_signature_for(device),
+        )?,
+    };
+    steps.push(ApplyStep::TableRestored { from_card: table_before.is_some() });
+
+    let mut dev = RawBlockDevice::open(&device.path, Access::ReadWrite)
+        .map_err(|e| ApplyError::Device(e.to_string()))?;
+
+    let problems = dev.lock_volumes_of_disk(device.index);
+    if problems.is_empty() {
+        steps.push(ApplyStep::VolumesDismounted);
+    } else {
+        steps.extend(problems.into_iter().map(ApplyStep::VolumeWarning));
+    }
+
+    let mut boot_sector = vec![0u8; sector_size];
+    boot_sector[..MBR_SIZE].copy_from_slice(&restored.to_bytes());
+    dev.write_at(0, &boot_sector)
+        .map_err(|e| ApplyError::Device(format!("failed to write the partition table: {e}")))?;
+    dev.flush().map_err(|e| ApplyError::Device(e.to_string()))?;
+    steps.push(ApplyStep::TableWritten);
+
+    dev.refresh_partition_table().map_err(|e| ApplyError::Device(e.to_string()))?;
+    steps.push(ApplyStep::SystemNotified);
+    drop(dev);
+
+    // The restored volume is formatted only when the table was ours to invent.
+    // Reinstating the card's own table and then formatting over it would
+    // destroy whatever that table described.
+    let mut letter = None;
+    if table_before.is_none() {
+        for _ in 0..MOUNT_ATTEMPTS {
+            if let Some(l) = find_data_volume_letter(device.index) {
+                letter = Some(l);
+                break;
+            }
+            std::thread::sleep(MOUNT_RETRY_DELAY);
+        }
+        match letter {
+            Some(l) => {
+                steps.push(ApplyStep::VolumeMounted { letter: l });
+                steps.push(format_volume(l, filesystem, label)?);
+            }
+            None => steps.push(ApplyStep::MountTimedOut),
+        }
+    }
+
+    Ok(ApplyOutcome { steps, data_volume_letter: letter, table_before: None })
 }
 
 /// Writes a FAT32 volume whose allocation table withholds every cluster the

@@ -606,6 +606,32 @@ function renderDeviceDetails(d) {
     prior.classList.add("hidden");
   }
 
+  /* What an earlier session measured.
+   *
+   * Stated with its age, because that is what the user has to weigh, and
+   * offered as a shortcut rather than as an answer: adopting it restores the
+   * picture and the layouts, and approves nothing. */
+  const remembered = $("remembered-note");
+  if (d.remembered) {
+    const age = d.remembered.age_seconds;
+    remembered.innerHTML =
+      `<strong>${escapeHtml(t("remembered.title"))}</strong>` +
+      `<p>${escapeHtml(t("remembered.body", {
+        when: age == null ? t("remembered.unknownAge") : humanAge(age),
+        approved: humanBytes(d.remembered.approved_bytes),
+        defective: humanBytes(d.remembered.defective_bytes),
+      }))}</p>` +
+      `<p class="remembered-caveat">${escapeHtml(t("remembered.caveat"))}</p>` +
+      `<button id="btn-remembered" class="btn btn-ghost">${escapeHtml(t("remembered.use"))}</button>`;
+    remembered.classList.remove("hidden");
+    $("btn-remembered").addEventListener("click", useRemembered);
+  } else {
+    remembered.classList.add("hidden");
+  }
+
+  // Releasing only means something on a card this program has fenced.
+  $("release-box").classList.toggle("hidden", !d.prior);
+
   $("device-details").classList.remove("hidden");
   $("btn-scan").disabled = d.verdict === "blocked" || state.scanning;
   // The scale appears on selection: the card gains dimension before the scan
@@ -889,6 +915,73 @@ $("modal-confirm").addEventListener("click", () => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !$("modal").classList.contains("hidden")) closeModal(null);
 });
+
+/* An age in words. Coarse on purpose: the difference between 91 and 94 days is
+ * not what the user is weighing, and a precise figure would invite reading it
+ * as precision about the card. */
+function humanAge(seconds) {
+  const day = 86400;
+  if (seconds < 3600) return t("age.underHour");
+  if (seconds < day) return t("age.hours", { n: Math.floor(seconds / 3600) });
+  if (seconds < 60 * day) return t("age.days", { n: Math.floor(seconds / day) });
+  return t("age.months", { n: Math.max(2, Math.round(seconds / (30 * day))) });
+}
+
+/* Adopts the remembered map, so the diagnosis and the layouts appear without a
+ * second inspection. It approves nothing: applying a layout from it still
+ * demands an inspection run now, and the backend refuses otherwise. */
+async function useRemembered() {
+  try {
+    await invoke("use_remembered");
+    toast(t("remembered.adopted"), "ok");
+  } catch (e) {
+    toast(t(String(e)), "error");
+  }
+}
+
+/* Gives the card its capacity back.
+ *
+ * The wording carries the weight here. This does not undo the inspection — the
+ * pattern went over every sector long before any layout existed — and it
+ * removes the protection rather than the damage: a card fenced because most of
+ * it is dead comes back as one full-size volume that will accept files and lose
+ * them. */
+async function releaseCard() {
+  const d = state.selected;
+  if (!d) return;
+
+  const typed = await openConfirm({
+    title: t("release.confirmTitle"),
+    bodyHtml:
+      `<p class="destructive">${escapeHtml(t("release.warning", { name: d.name }))}</p>` +
+      `<p>${escapeHtml(t("release.explain"))}</p>` +
+      `<p>${escapeHtml(
+        d.remembered && d.remembered.can_restore_table
+          ? t("release.restores")
+          : t("release.invents"))}</p>`,
+    expected: d.name,
+  });
+  if (typed === null) return;
+
+  try {
+    const result = await invoke("release_card", {
+      typedName: typed,
+      filesystem: $("fs-select") ? $("fs-select").value : "exfat",
+    });
+    const steps = result.steps.map((x) => `<li>${escapeHtml(stepMessage(x))}</li>`).join("");
+    resetModalChrome();
+    $("modal-title").textContent = t("release.doneTitle");
+    $("modal-body").innerHTML = `<ul class="steps">${steps}</ul>`;
+    $("modal-typed").classList.add("hidden");
+    $("modal-confirm").classList.add("hidden");
+    $("modal-cancel").textContent = t("modal.close");
+    $("modal").classList.remove("hidden");
+    resetResults();
+    await refreshDevices();
+  } catch (e) {
+    toast(t(String(e)), "error");
+  }
+}
 
 /* ─────────────────────────────────────────────────────────────── layouts */
 
@@ -1231,6 +1324,7 @@ $("btn-cancel").addEventListener("click", () => invoke("cancel_scan").catch(() =
 
 $("fs-select").addEventListener("change", buildPlans);
 $("btn-apply").addEventListener("click", applyPlan);
+$("btn-release").addEventListener("click", releaseCard);
 
 listen("scan:progress", (e) => applySnapshot(e.payload));
 

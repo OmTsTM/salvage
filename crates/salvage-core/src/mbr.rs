@@ -10,8 +10,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::geometry::LbaRange;
-use crate::planner::{PartitionPlan, QUARANTINE_MBR_TYPE};
+use crate::geometry::{DeviceGeometry, LbaRange};
+use crate::planner::{FileSystem, PartitionPlan, QUARANTINE_MBR_TYPE};
 
 /// Size of the MBR sector.
 pub const MBR_SIZE: usize = 512;
@@ -184,6 +184,38 @@ impl MasterBootRecord {
                 sector_count: p.range.len() as u32,
             };
         }
+        Ok(mbr)
+    }
+
+    /// One partition spanning the device, as a card ships from the factory.
+    ///
+    /// The fallback for releasing a card whose original table was never kept.
+    /// It starts at the first alignment boundary rather than at sector 1: the
+    /// table itself lives in sector 0, and every card and camera in existence
+    /// expects the first partition on a 4 MiB boundary.
+    ///
+    /// Nothing here is a judgement about whether the card is fit to hold data.
+    /// It restores capacity, and capacity on a failing card is exactly the
+    /// thing fencing existed to withhold — which is the caller's decision to
+    /// make and to explain.
+    pub fn single_partition(
+        geometry: &DeviceGeometry,
+        filesystem: FileSystem,
+        disk_signature: u32,
+    ) -> Result<Self, MbrError> {
+        let start = geometry.default_alignment_sectors().max(2048);
+        let end = geometry.total_sectors().min(MAX_ADDRESSABLE_SECTORS);
+        if end <= start {
+            return Err(MbrError::EmptyPartition(0));
+        }
+
+        let mut mbr = Self::empty(disk_signature);
+        mbr.partitions[0] = PartitionEntry {
+            bootable: false,
+            partition_type: filesystem.mbr_type(),
+            start_lba: start as u32,
+            sector_count: (end - start) as u32,
+        };
         Ok(mbr)
     }
 
@@ -364,6 +396,33 @@ mod tests {
             sacrificed_bytes: 0,
             containment: Containment::PartitionBoundary,
         }
+    }
+
+    /// The way back when no original table was kept: full capacity, aligned,
+    /// and never over sector zero.
+    #[test]
+    fn a_single_partition_spans_the_card_from_the_first_alignment_boundary() {
+        let g = DeviceGeometry::new(512, 245_760_000).unwrap();
+        let mbr = MasterBootRecord::single_partition(&g, FileSystem::ExFat, 0x1234_5678).unwrap();
+
+        let used: Vec<_> = mbr.used_partitions().collect();
+        assert_eq!(used.len(), 1, "exactly one partition");
+        let (_, p) = used[0];
+        assert_eq!(p.start_lba, 8192, "aligned to the 4 MiB erase block");
+        assert_eq!(p.partition_type, FileSystem::ExFat.mbr_type());
+        assert_eq!(
+            p.start_lba as u64 + p.sector_count as u64,
+            245_760_000,
+            "the partition should reach the end of the card"
+        );
+    }
+
+    /// A card too small to hold an aligned partition must be refused rather
+    /// than given one that starts past its own end.
+    #[test]
+    fn a_card_smaller_than_the_alignment_is_refused() {
+        let g = DeviceGeometry::new(512, 1024).unwrap();
+        assert!(MasterBootRecord::single_partition(&g, FileSystem::ExFat, 0).is_err());
     }
 
     #[test]

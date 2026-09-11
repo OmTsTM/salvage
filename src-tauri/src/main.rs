@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use salvage_app::device::{BlockDevice, DeviceEnumerator, DeviceInfo};
+use salvage_app::history::{CardHistory, CardRecord};
 use salvage_app::safety::{evaluate, DestructiveConsent, SafetyPolicy, SafetyVerdict};
 use salvage_app::scan::{
     CancellationToken, ScanConfig, ScanObserver, ScanPhase, ScanProgress, Scanner,
@@ -25,7 +26,7 @@ use salvage_core::planner::{
     PartitionRole, PlanningPolicy,
 };
 use salvage_core::sector_map::{SectorCounts, SectorMap, SectorState};
-use salvage_win32::{apply_plan, RawBlockDevice, WindowsDeviceEnumerator};
+use salvage_win32::{apply_plan, FileHistory, RawBlockDevice, WindowsDeviceEnumerator};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
@@ -196,6 +197,48 @@ fn state_code(state: SectorState) -> u8 {
     }
 }
 
+/// Stores what was just measured, so a later session need not measure it again.
+///
+/// Best effort by design. A record that cannot be written is a convenience
+/// lost, and the inspection the user waited hours for must not fail with it.
+/// The one thing kept from any earlier record is the card's original partition
+/// table: that is what makes fencing reversible, and it exists only once.
+fn remember(device: &DeviceInfo, map: &SectorMap) {
+    let store = FileHistory::in_user_data();
+    let fingerprint = device.fingerprint();
+    let previous = store.load(&fingerprint).ok().flatten();
+
+    let mut record = CardRecord::new(&fingerprint, map.clone());
+    if let Some(table) = previous.and_then(|r| r.table_before) {
+        record.remember_table(&table);
+    }
+    match store.save(&record) {
+        Ok(()) => log("card record stored"),
+        Err(e) => log(&format!("could not store the card record: {e}")),
+    }
+}
+
+/// Keeps the table a card carried before this program overwrote it.
+///
+/// Called after an apply, with the bytes the apply read on its way past. There
+/// is exactly one moment this can be captured — just before it stops existing —
+/// and missing it makes the fencing one-way.
+fn remember_table(device: &DeviceInfo, table: &[u8]) {
+    let store = FileHistory::in_user_data();
+    let fingerprint = device.fingerprint();
+    let Ok(Some(mut record)) = store.load(&fingerprint) else {
+        log("no card record to attach the original table to");
+        return;
+    };
+    if record.table_before.is_some() {
+        return;
+    }
+    record.remember_table(table);
+    if let Err(e) = store.save(&record) {
+        log(&format!("could not store the original table: {e}"));
+    }
+}
+
 /// Session seed derived from the clock.
 fn session_nonce() -> u64 {
     SystemTime::now()
@@ -227,6 +270,24 @@ struct DeviceView {
     /// such a layout. `None` also covers "not looked at yet": the list does
     /// not read a table for every disk it names, only for the one selected.
     prior: Option<PriorLayoutView>,
+    /// What an earlier session measured about this card, if anything.
+    remembered: Option<RememberedView>,
+}
+
+/// A summary of what is remembered, offered to the window.
+///
+/// The map itself stays in the backend. The window needs to say what is known
+/// and how old it is; handing it millions of sectors to make that sentence
+/// would be a strange way to say it.
+#[derive(Serialize, Clone)]
+struct RememberedView {
+    /// Seconds since the inspection, or `None` when the clock disagrees.
+    age_seconds: Option<u64>,
+    approved_bytes: u64,
+    defective_bytes: u64,
+    /// Whether the card's own partition table was kept, and so whether
+    /// releasing it can restore that rather than inventing one.
+    can_restore_table: bool,
 }
 
 /// An earlier layout, in the terms the window needs to talk about it.
@@ -280,6 +341,7 @@ impl DeviceView {
             blocks,
             warnings,
             prior: None,
+            remembered: None,
         }
     }
 }
@@ -550,6 +612,15 @@ struct AppState {
     /// Interval the inspection and the window are about. `None` is the whole
     /// device, which is the case for any card this program has not fenced.
     view_span: Option<salvage_core::LbaRange>,
+    /// What an earlier session measured about the selected card, held so the
+    /// user can adopt it without a second read from disk.
+    remembered: Option<CardRecord>,
+    /// Whether the working map was produced by an inspection in this session.
+    ///
+    /// False when it came from a record. A map in that state describes hardware
+    /// as it was, and the apply path will not write a data partition from it
+    /// until the area has been read back today.
+    verified_now: bool,
 }
 
 type Shared = Arc<Mutex<AppState>>;
@@ -639,6 +710,9 @@ mod err {
     pub const ENUMERATE: &str = "err.enumerate";
     pub const DEVICE_GONE: &str = "err.device_gone";
     pub const SCAN_RUNNING: &str = "err.scan_running";
+    pub const NOTHING_REMEMBERED: &str = "err.nothing_remembered";
+    pub const REMEMBERED_OTHER_CARD: &str = "err.remembered_other_card";
+    pub const STALE_MAP: &str = "err.stale_map";
     pub const NO_DEVICE: &str = "err.no_device";
     pub const NO_MAP: &str = "err.no_map";
     pub const NO_PLAN: &str = "err.no_plan";
@@ -703,6 +777,8 @@ fn select_device(path: String, state: State<'_, Shared>) -> Result<DeviceView, S
     guard.report = None;
     guard.plans.clear();
     guard.consent = None;
+    guard.remembered = None;
+    guard.verified_now = false;
     guard.selected = Some(device.clone());
 
     // Read here rather than in the listing: it costs a handle and a sector per
@@ -727,7 +803,126 @@ fn select_device(path: String, state: State<'_, Shared>) -> Result<DeviceView, S
 
     let mut view = DeviceView::from(&device, &SafetyPolicy::default());
     view.prior = prior.as_ref().map(PriorLayoutView::from);
+
+    // What an earlier session measured. Loaded but not adopted: it becomes the
+    // working map only if the user asks for it, and even then it approves
+    // nothing on its own.
+    let store = FileHistory::in_user_data();
+    match store.load(&device.fingerprint()) {
+        Ok(Some(record)) => {
+            let ss = record.map.geometry().sector_size() as u64;
+            let counts = record.map.counts();
+            log(&format!(
+                "card remembered from an earlier session, age {:?}s",
+                record.age_seconds()
+            ));
+            view.remembered = Some(RememberedView {
+                age_seconds: record.age_seconds(),
+                approved_bytes: counts.good * ss,
+                defective_bytes: counts.defective() * ss,
+                can_restore_table: record.table_before.is_some(),
+            });
+            guard.remembered = Some(record);
+        }
+        Ok(None) => guard.remembered = None,
+        Err(e) => {
+            log(&format!("card record unreadable: {e}"));
+            guard.remembered = None;
+        }
+    }
     Ok(view)
+}
+
+/// Adopts what an earlier session measured, without re-reading the card.
+///
+/// The record becomes the working map, so the diagnosis and the layouts appear
+/// as they did then. It approves nothing: `verified_now` stays false, and the
+/// apply path refuses to write a data partition from a map in that state until
+/// the area has been read back today.
+#[tauri::command]
+fn use_remembered(app: AppHandle, state: State<'_, Shared>) -> Result<(), String> {
+    let mut guard = state.lock().map_err(|_| err::STATE)?;
+    let record = guard.remembered.clone().ok_or(err::NOTHING_REMEMBERED)?;
+    let device = guard.selected.clone().ok_or(err::NO_DEVICE)?;
+
+    if !record.matches(&device.fingerprint()) {
+        return Err(err::REMEMBERED_OTHER_CARD.into());
+    }
+
+    log(&format!("adopting the remembered map, age {:?}s", record.age_seconds()));
+    let report = diagnose(&record.map, None);
+    let snapshot = build_snapshot(&record.map, None, Some(&report), false, guard.view_span);
+    guard.map = Some(record.map);
+    guard.report = Some(report);
+    guard.verified_now = false;
+    guard.baseline = None;
+    let _ = app.emit("scan:done", snapshot);
+    Ok(())
+}
+
+/// Removes this program's layout and gives the card its capacity back.
+///
+/// # What this is
+///
+/// The way out. Fencing is otherwise a one-way door: a card given a layout is
+/// limited to the sliver that survived, for good.
+///
+/// # What it is not
+///
+/// It does not undo the inspection. The pattern was written over every sector
+/// long before any layout existed, and the card's original contents went with
+/// it. And it removes the protection rather than the damage: a card fenced
+/// because almost all of it is dead comes back as one full-capacity volume that
+/// will accept files and lose them. That is a legitimate thing to want, and it
+/// is the caller's to choose — the window says so before asking.
+#[tauri::command]
+fn release_card(
+    typed_name: String,
+    filesystem: String,
+    state: State<'_, Shared>,
+) -> Result<ApplyView, String> {
+    let (device, table) = {
+        let guard = state.lock().map_err(|_| err::STATE)?;
+        let device = guard.selected.clone().ok_or(err::NO_DEVICE)?;
+        let table = guard.remembered.as_ref().and_then(|r| r.table_before.clone());
+        (device, table)
+    };
+
+    // The same named consent as any other destructive operation: this rewrites
+    // the partition table of a disk.
+    let consent = DestructiveConsent::issue(&device, &typed_name, &SafetyPolicy::default())
+        .map_err(|e| {
+            log(&format!("consent refused: {e}"));
+            consent_key(&e).to_string()
+        })?;
+
+    let filesystem = match filesystem.as_str() {
+        "fat32" => FileSystem::Fat32,
+        _ => FileSystem::ExFat,
+    };
+
+    log(&format!(
+        "releasing {} (original table {})",
+        device.path,
+        if table.is_some() { "restored" } else { "not kept; using full capacity" }
+    ));
+    let outcome =
+        salvage_win32::release_card(&device, &consent, table.as_deref(), filesystem, "SALVAGE")
+            .map_err(|e| e.to_string())?;
+
+    // The card no longer carries a layout, so the next inspection covers all of
+    // it again. Everything measured about the fenced state is now a description
+    // of a card that does not exist.
+    if let Ok(mut guard) = state.lock() {
+        guard.prior = None;
+        guard.view_span = None;
+        guard.map = None;
+        guard.baseline = None;
+        guard.report = None;
+        guard.plans.clear();
+    }
+
+    Ok(ApplyView { steps: outcome.steps, drive_letter: outcome.data_volume_letter, prior: None })
 }
 
 #[tauri::command]
@@ -838,6 +1033,8 @@ fn start_scan(typed_name: String, app: AppHandle, state: State<'_, Shared>) -> R
                 // This pass becomes the next one's baseline, which is what
                 // distinguishes a stable defect from active degradation.
                 guard.baseline = Some(map.clone());
+                guard.verified_now = true;
+                remember(&device, &map);
                 guard.map = Some(map);
                 guard.report = Some(report);
                 let _ = app.emit("scan:done", snapshot);
@@ -1044,6 +1241,16 @@ fn apply(
         let plan = guard.plans.get(plan_index).cloned().ok_or(err::NO_PLAN)?;
         let map = guard.map.clone().ok_or(err::NO_MAP)?;
 
+        // A map adopted from an earlier session describes the card as it was.
+        // Flash degrades and the translation layer moves addresses, so writing
+        // a data partition from one would place files on sectors last proven
+        // months ago. The record is a map of where to look; only an inspection
+        // run today approves anything.
+        if !guard.verified_now {
+            log("apply refused: the working map was not verified in this session");
+            return Err(err::STALE_MAP.into());
+        }
+
         // Consent is reissued from the name typed now: approving the
         // inspection does not count as approving the repartitioning.
         let consent = DestructiveConsent::issue(&device, &typed_name, &SafetyPolicy::default())
@@ -1061,6 +1268,10 @@ fn apply(
 
     let outcome = apply_plan(&device, &plan, &map, &consent, filesystem, &label)
         .map_err(|e| e.to_string())?;
+
+    if let Some(table) = outcome.table_before.as_deref() {
+        remember_table(&device, table);
+    }
 
     // The card carries a layout now, so the next inspection covers the area it
     // left. Read back off the table just written rather than taken from the
@@ -1244,6 +1455,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             app_version,
             list_devices,
+            use_remembered,
+            release_card,
             select_device,
             start_scan,
             cancel_scan,
