@@ -59,22 +59,35 @@ hold it in place, and both are easy to break by accident:
   byte counts and sector counts; `ui/i18n.js` renders them through `Intl`. A
   thousands separator is a period in Brazil and a comma in the United States,
   and a string the backend already formatted cannot be re-formatted here. There
-  is no `format::bytes` call left in `src-tauri/src/main.rs`, and adding one
-  back is how this quietly regresses.
+  is no `format::bytes` call anywhere in `src-tauri`, and adding one back is how
+  this quietly regresses.
 
 ## Before opening a pull request
 
 ```powershell
-node --check ui/app.js
+Get-ChildItem ui -Filter *.js | ForEach-Object { node --check $_.FullName }
+python tools/check_strings.py
+node tools/check_placeholders.mjs
 cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-All four run in CI and all four must be clean. The parse check is there because
-nothing compiles `ui/app.js`: a syntax error in it costs nothing at build time
-and everything at run time, since the window draws from `index.html` and then
-sits there with no script behind it.
+All six run in CI and all six must be clean.
+
+The parse check is there because nothing compiles the window's scripts: a syntax
+error costs nothing at build time and everything at run time, since the window
+draws from `index.html` and then sits there with no script behind it. It covers
+every file in `ui/` rather than one by name — they are plain scripts loaded in
+the order `index.html` lists, so any of them can stop the rest from running.
+
+The two checks between them cover what no compiler can see, because the mismatch
+lives between languages. `check_strings.py` fails when the backend can emit an
+`ApplyStep` the window has no wording for — 0.6.0 shipped exactly that, and the
+first person to release a card was told `table_restored`. `check_placeholders.mjs`
+fails when a sentence takes arguments the caller does not supply: a template
+wanting `{approved}` and a call passing `aproved` produce no error anywhere, and
+the sentence simply reaches one language with a brace in it.
 
 `cargo test --workspace` needs an elevated shell. `salvage-gui` embeds a
 manifest requesting Administrator, its test binary inherits it, and Windows

@@ -440,7 +440,18 @@ crates/salvage-win32/    The only crate containing unsafe.
    history.rs            Card records on disk
 
 src-tauri/               Bridge to the window. No business rules.
+   main.rs               The command surface the window calls, and the launch
+   views.rs              Domain types as shapes JSON can carry. No sentences
+   state.rs              What a session holds, and the observer watching a scan
+   diagnostics.rs        The log. Everything calls it; it calls nothing
+
 ui/                      HTML, CSS and Canvas. Four languages.
+   i18n.js               Every sentence the window says, and Intl for numbers
+   core.js               Shared state, helpers, the colour and texture tables
+   canvas.js             The card, the ruler beside it, the legend under it
+   modal.js              The one dialog every irreversible operation passes
+   layouts.js            The fencing panel and the writes it can start
+   app.js                Devices, inspection, the controls, the launch block
 ```
 
 The sector map is run-length encoded: a 128 GB card holds 268 million sectors,
