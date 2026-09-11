@@ -49,13 +49,24 @@ jobs:
       - name: Tests
         run: cargo test --workspace
 
+      # The tag carries a leading "v" and the release name does not: the list of
+      # releases reads as versions, not as refs. Computed once here rather than
+      # trimmed by hand at publish time, which is how "Salvage v0.7.0" and
+      # "Salvage 0.6.1" came to sit next to each other.
+      - name: Name the release
+        id: naming
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.inputs.tag || github.ref_name }}"
+          "version=$($tag.TrimStart('v'))" >> $env:GITHUB_OUTPUT
+
       - name: Build the installer and publish the release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
-          releaseName: Salvage ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: Salvage ${{ steps.naming.outputs.version }}
           releaseBody: |
             Windows installer. Run as Administrator: Salvage needs raw disk
             access, and the installed shortcut requests elevation on launch.
