@@ -230,6 +230,11 @@ const I18N = (() => {
       "spec.unlettered": "sem letra",
       "prepare.needsFresh":
         "Este resultado veio de um registro guardado, que descreve o cartão como ele estava. Rode a inspeção antes de formatar.",
+      "prepare.bodyKept":
+        "Todos os setores responderam corretamente: não há área a isolar nem layout a escolher.",
+      "prepare.hasVolume":
+        "Este cartão já tem um volume em {letter}. Inspecionar de novo apagaria esse " +
+        "volume, e só uma inspeção feita agora pode aprovar área para outro.",
       "prepare.button": "Formatar o cartão",
       "prepare.confirmTitle": "Confirmar formatação",
       "prepare.warning": "Isto grava uma nova tabela de partições em {name}.",
@@ -640,6 +645,11 @@ const I18N = (() => {
       "spec.unlettered": "no letter",
       "prepare.needsFresh":
         "This result came from a stored record, which describes the card as it was. Run the inspection before formatting.",
+      "prepare.bodyKept":
+        "Every sector answered correctly: there is no area to fence and no layout to choose.",
+      "prepare.hasVolume":
+        "This card already carries a volume at {letter}. Inspecting it again would erase " +
+        "that volume, and only an inspection run now can approve area for another.",
       "prepare.button": "Format the card",
       "prepare.confirmTitle": "Confirm formatting",
       "prepare.warning": "This writes a new partition table on {name}.",
@@ -1055,6 +1065,11 @@ const I18N = (() => {
       "spec.unlettered": "sin letra",
       "prepare.needsFresh":
         "Este resultado viene de un registro guardado, que describe la tarjeta como estaba. Ejecute la inspección antes de formatear.",
+      "prepare.bodyKept":
+        "Todos los sectores respondieron correctamente: no hay área que aislar ni diseño que elegir.",
+      "prepare.hasVolume":
+        "Esta tarjeta ya tiene un volumen en {letter}. Inspeccionarla de nuevo lo borraría, " +
+        "y solo una inspección hecha ahora puede aprobar área para otro.",
       "prepare.button": "Formatear la tarjeta",
       "prepare.confirmTitle": "Confirmar el formateo",
       "prepare.warning": "Esto escribe una nueva tabla de particiones en {name}.",
@@ -1441,6 +1456,9 @@ const I18N = (() => {
         "检测已覆写每一个扇区，因此这张卡现在是空的。格式化才能让它重新可用。",
       "spec.unlettered": "无盘符",
       "prepare.needsFresh": "该结果来自已保存的记录，描述的是当时的状态。请先运行检测，再进行格式化。",
+      "prepare.bodyKept": "所有扇区都回应正确：没有需要隔离的区域，也没有可选的布局。",
+      "prepare.hasVolume":
+        "这张卡在 {letter} 上已有一个卷。再次检测会抹除该卷，而只有现在运行的检测才能为新卷批准区域。",
       "prepare.button": "格式化这张卡",
       "prepare.confirmTitle": "确认格式化",
       "prepare.warning": "这将在 {name} 上写入新的分区表。",

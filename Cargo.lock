@@ -2536,7 +2536,7 @@ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
 name = "salvage-app"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "salvage-core",
  "serde",
@@ -2545,7 +2545,7 @@ dependencies = [
 
 [[package]]
 name = "salvage-core"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "serde",
  "thiserror 2.0.20",
@@ -2553,7 +2553,7 @@ dependencies = [
 
 [[package]]
 name = "salvage-gui"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "salvage-app",
  "salvage-core",
@@ -2566,7 +2566,7 @@ dependencies = [
 
 [[package]]
 name = "salvage-win32"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "salvage-app",
  "salvage-core",

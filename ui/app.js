@@ -1229,13 +1229,25 @@ function showPrepare() {
   // confirmation dialog.
   const fresh = !state.lastSnapshot || state.lastSnapshot.verified_now;
 
+  // Whether the card carries a volume right now, from the source that is
+  // trustworthy in each case. After an inspection run in this session the
+  // enumerated list is stale by construction — the scan wrote its pattern over
+  // the filesystem it lists — so a fresh map settles it: the card is erased.
+  // Otherwise the enumeration is current and it is the only thing that knows.
+  const letters = fresh ? [] : (state.selected?.volumes ?? []).filter((v) => v.includes(":"));
+  const carriesVolume = letters.length > 0;
+
   const box = $("plan-prepare");
   box.innerHTML =
     `<strong>${escapeHtml(t("prepare.title"))}</strong>` +
-    `<p>${escapeHtml(t("prepare.body"))}</p>` +
-    (fresh
-      ? `<p class="prepare-erased">${escapeHtml(t("prepare.erased"))}</p>`
-      : `<p class="prepare-erased">${escapeHtml(t("prepare.needsFresh"))}</p>`);
+    `<p>${escapeHtml(t(carriesVolume ? "prepare.bodyKept" : "prepare.body"))}</p>` +
+    `<p class="prepare-erased">${escapeHtml(
+      fresh
+        ? t("prepare.erased")
+        : carriesVolume
+          ? t("prepare.hasVolume", { letter: letters.join(", ") })
+          : t("prepare.needsFresh"),
+    )}</p>`;
   box.classList.remove("hidden");
 
   $("btn-apply").classList.add("hidden");

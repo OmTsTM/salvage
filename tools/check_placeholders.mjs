@@ -42,6 +42,7 @@ const CALLS = [
   ["dead.lead", { from: "15.71 GB", size: "13.26 GB" }],
   ["dead.keeps", { approved: "15.67 GB" }],
   ["scan.watchdog", { n: 20 }],
+  ["prepare.hasVolume", { letter: "F:" }],
   ["prepare.warning", { name: "Generic MassStorageClass" }],
   ["prepare.willWrite", { fs: "FAT32", label: "SALVAGE" }],
   ["prepare.where", { letter: "F" }],
