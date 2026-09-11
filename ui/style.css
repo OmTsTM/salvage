@@ -1244,3 +1244,32 @@ select:disabled { opacity: 0.5; }
   border-top: 1px solid var(--border-soft);
   padding-top: 9px;
 }
+
+
+/* ── the offer to stop early ──────────────────────────────────────────────
+   Shown when a long unbroken stretch has come back broken. Deliberately not
+   an alarm: nothing is wrong, and the scan is free to continue. It is an
+   amber note rather than a red one because it reports a cost — the time still
+   to be spent — and not a fault.
+
+   Placed under the progress detail, where the person watching the bar already
+   is, and carrying its own action so the decision and the means to act on it
+   are never a scroll apart. */
+.dead-run {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(251, 191, 36, 0.06);
+  border-left: 3px solid var(--warn);
+}
+.dead-run strong { display: block; margin-bottom: 7px; font-size: 12.5px; }
+.dead-run p {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+/* What stopping gives up is the half a hurried reader skips, so it is set
+   apart rather than left to look like more of the same reassurance. */
+.dead-run p:last-of-type { color: var(--text-faint); }
+.dead-run .btn { width: 100%; }

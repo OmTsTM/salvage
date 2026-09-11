@@ -302,6 +302,15 @@ const I18N = (() => {
         "assim que capacidade falsificada e corrupção silenciosa aparecem, e nenhuma das " +
         "duas se revela de outro jeito.</p>",
       "scan.warningTitle": "Atenção:",
+      "dead.lead": "Nada responde desde {from} — {size} seguidos.",
+      "dead.keeps":
+        "Parar agora preserva os {approved} já provados. Área não examinada é retida " +
+        "de dados exatamente como área defeituosa, então o total aproveitável é o mesmo.",
+      "dead.costs":
+        "O que você abre mão: um cartão que mente sobre a capacidade se entrega " +
+        "justamente na parte ainda não lida, e área que tenha sobrevivido depois do " +
+        "estrago também estaria lá.",
+      "dead.stop": "Parar e ficar com o que está provado",
       "scan.cancelled": "Inspeção cancelada.",
       "scan.done": "Inspeção concluída.",
       "scan.watchdog":
@@ -694,6 +703,15 @@ const I18N = (() => {
         "identical is approved — that is how counterfeit capacity and silent corruption " +
         "surface, and neither shows itself any other way.</p>",
       "scan.warningTitle": "Note:",
+      "dead.lead": "Nothing has answered since {from} — {size} in a row.",
+      "dead.keeps":
+        "Stopping now keeps the {approved} already proven. Unexamined area is withheld " +
+        "from data exactly as failed area is, so the usable total is the same.",
+      "dead.costs":
+        "What it gives up: a card that lies about its capacity gives itself away in the " +
+        "part not yet read, and any area that survived past the damage would be found " +
+        "there too.",
+      "dead.stop": "Stop and keep what is proven",
       "scan.cancelled": "Inspection cancelled.",
       "scan.done": "Inspection complete.",
       "scan.watchdog":
@@ -1093,6 +1111,14 @@ const I18N = (() => {
         "idéntico se aprueba — así es como aparecen la capacidad falsificada y la " +
         "corrupción silenciosa, y ninguna de las dos se revela de otro modo.</p>",
       "scan.warningTitle": "Atención:",
+      "dead.lead": "Nada responde desde {from} — {size} seguidos.",
+      "dead.keeps":
+        "Detenerse ahora conserva los {approved} ya probados. El área no examinada se " +
+        "retiene igual que el área defectuosa, así que el total aprovechable es el mismo.",
+      "dead.costs":
+        "A lo que renuncia: una tarjeta que miente sobre su capacidad se delata justo en " +
+        "la parte aún no leída, y el área que haya sobrevivido al daño también estaría ahí.",
+      "dead.stop": "Detener y conservar lo probado",
       "scan.cancelled": "Inspección cancelada.",
       "scan.done": "Inspección terminada.",
       "scan.watchdog":
@@ -1440,6 +1466,12 @@ const I18N = (() => {
         "<p>每个扇区先写入、再回读。只有原样返回的才算合格 —— " +
         "容量造假和静默损坏正是这样暴露出来的，而这两者都没有别的办法能查出。</p>",
       "scan.warningTitle": "注意：",
+      "dead.lead": "自 {from} 起没有任何回应——连续 {size}。",
+      "dead.keeps":
+        "现在停止可保留已证实的 {approved}。未检测区域与损坏区域一样不会存放数据，因此可用总量不变。",
+      "dead.costs":
+        "代价：谎报容量的卡正是在尚未读取的部分露出马脚，损坏之后若还有幸存区域也在那里。",
+      "dead.stop": "停止并保留已证实的部分",
       "scan.cancelled": "检测已取消。",
       "scan.done": "检测完成。",
       "scan.watchdog":

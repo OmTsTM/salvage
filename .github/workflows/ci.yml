@@ -41,6 +41,11 @@ jobs:
       - name: Interface strings
         run: python tools/check_strings.py
 
+      # A sentence that takes arguments and does not get them reaches the user
+      # with a brace in it, in one language, and nothing anywhere fails.
+      - name: Sentence arguments
+        run: node tools/check_placeholders.mjs
+
       - name: Formatting
         run: cargo fmt --all -- --check
 

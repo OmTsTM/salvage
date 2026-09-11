@@ -95,6 +95,13 @@ try {
         python tools/check_strings.py
         if ($LASTEXITCODE -ne 0) { throw 'the window is missing wording for something the backend can say' }
 
+        # And that every sentence taking arguments gets the ones it asks for.
+        # A template wanting {approved} and a caller passing `aproved` fail
+        # nowhere: the sentence just reaches one language with a brace in it.
+        Step 'Sentence arguments'
+        node tools/check_placeholders.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'a sentence reaches the user with a blank in it' }
+
         Step 'Formatting'
         cargo fmt --all -- --check
         if ($LASTEXITCODE -ne 0) { throw 'cargo fmt reported differences' }

@@ -151,6 +151,16 @@
         </div>
         <div class="progress-track"><div id="progress-bar" class="progress-fill"></div></div>
         <p id="progress-detail" class="progress-detail">&nbsp;</p>
+
+        <!-- Appears only once a long unbroken stretch has failed. It states
+             what was measured and what stopping would keep; it never says what
+             lies ahead, because nothing has looked there. -->
+        <div id="dead-run" class="dead-run hidden">
+          <strong id="dead-run-lead"></strong>
+          <p id="dead-run-keeps"></p>
+          <p id="dead-run-costs"></p>
+          <button id="btn-stop-early" class="btn btn-ghost" data-i18n="dead.stop"></button>
+        </div>
       </div>
 
       <ul class="legend" id="legend"></ul>

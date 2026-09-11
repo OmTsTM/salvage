@@ -480,6 +480,12 @@ struct Snapshot {
     sector_size: u32,
     capacity_bytes: u64,
     report: Option<ReportView>,
+    /// The unbroken defective span the scan is currently inside, if any.
+    ///
+    /// A measurement of what is behind the frontier, never a claim about what
+    /// lies ahead. The window uses it to offer the choice to stop early, and
+    /// says in the same breath what stopping keeps and what it forgoes.
+    dead_run: Option<DeadRunView>,
     /// Whether this map was measured in this session.
     ///
     /// A map adopted from a stored record describes the card as it was, and
@@ -487,6 +493,15 @@ struct Snapshot {
     /// know before it offers, rather than after the user has typed the device
     /// name into a confirmation.
     verified_now: bool,
+}
+
+/// An unbroken stretch where nothing came back intact.
+#[derive(Serialize, Clone)]
+struct DeadRunView {
+    /// Where the stretch begins, as an offset into the card.
+    start_bytes: u64,
+    /// How much of it has been examined so far.
+    bytes: u64,
 }
 
 fn build_snapshot(
@@ -548,6 +563,16 @@ fn build_snapshot(
         sector_size,
         capacity_bytes: view.len() * sector_size as u64,
         report: report.map(|r| ReportView::from(r, sector_size)),
+        // Only while a scan is running: on a finished map the frontier is the
+        // end of the card, and a span touching it would describe nothing the
+        // user can still act on.
+        dead_run: progress
+            .filter(|_| scanning)
+            .and_then(|p| map.defective_run_at(p.current_lba))
+            .map(|r| DeadRunView {
+                start_bytes: r.start() * sector_size as u64,
+                bytes: r.len() * sector_size as u64,
+            }),
         verified_now,
     }
 }

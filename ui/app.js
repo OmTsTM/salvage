@@ -687,6 +687,7 @@ function resetResults() {
   $("progress-pct").textContent = "—";
   $("phase-label").textContent = t("phase.waiting");
   $("progress-detail").innerHTML = "&nbsp;";
+  $("dead-run").classList.add("hidden");
   renderLegend(null, 512);
 }
 
@@ -695,6 +696,8 @@ function resetResults() {
 function applySnapshot(snap) {
   state.lastSnapshot = snap;
   $("stage-idle").classList.add("hidden");
+  renderDeadRun(snap);
+
   if (snap.scanning) {
     armWatchdog();
     // Progress is the answer to the only question the watchdog asks. Left
@@ -848,6 +851,46 @@ function renderReport(r) {
   }
 }
 
+/* How much has to fail in a row before the offer to stop appears.
+ *
+ * The note costs attention, so it should only arrive where the time it could
+ * save is worth the interruption. A gigabyte of unbroken damage is minutes of
+ * reading on a healthy card and considerably more on a sick one, because a
+ * sector that fails takes far longer to fail than a good one takes to pass:
+ * this card read its damaged half at 5 MB/s against 23 MB/s writing. */
+const DEAD_RUN_THRESHOLD_BYTES = 1024 * 1024 * 1024;
+
+/* Offers the choice to stop, without making the prediction.
+ *
+ * The temptation here is to say the rest of the card is bad. The program must
+ * not: it has not looked, and its whole claim rests on never reporting what it
+ * did not measure. So the note states three measured things — where the damage
+ * began, what stopping preserves, and what stopping gives up — and leaves the
+ * inference to the person, who is entitled to make it.
+ *
+ * Stopping costs no usable space. Unexamined area is withheld from data exactly
+ * as failed area is, so the approved total is the same either way. What it does
+ * cost is the diagnosis: a card that lies about its capacity gives itself away
+ * in the tail, and area that survived past the damage would be found there too. */
+function renderDeadRun(snap) {
+  const box = $("dead-run");
+  const run = snap.dead_run;
+  if (!run || run.bytes < DEAD_RUN_THRESHOLD_BYTES) {
+    box.classList.add("hidden");
+    return;
+  }
+
+  $("dead-run-lead").textContent = t("dead.lead", {
+    from: humanBytes(run.start_bytes),
+    size: humanBytes(run.bytes),
+  });
+  $("dead-run-keeps").textContent = t("dead.keeps", {
+    approved: humanBytes(Number(snap.counts.good || 0) * snap.sector_size),
+  });
+  $("dead-run-costs").textContent = t("dead.costs");
+  box.classList.remove("hidden");
+}
+
 /* The scan runs on a backend thread. If it dies, stalls, or its events stop
  * arriving, the window would sit at "waiting" forever — exactly the symptom
  * that motivated this watchdog. Progress arrives every 120 ms, so twenty
@@ -896,6 +939,7 @@ function setScanning(on) {
   if (on) { armWatchdog(); } else { clearTimeout(state.watchdog); }
   $("btn-scan").classList.toggle("hidden", on);
   $("btn-cancel").classList.toggle("hidden", !on);
+  if (!on) $("dead-run").classList.add("hidden");
   $("device-select").disabled = on;
   $("btn-refresh").disabled = on;
 }
@@ -1474,6 +1518,7 @@ async function startScan() {
 $("btn-scan").addEventListener("click", startScan);
 
 $("btn-cancel").addEventListener("click", () => invoke("cancel_scan").catch(() => {}));
+$("btn-stop-early").addEventListener("click", () => invoke("cancel_scan").catch(() => {}));
 // The layouts depend only on the filesystem, so they follow it automatically.
 /* Stamps the running version beside the wordmark.
  *

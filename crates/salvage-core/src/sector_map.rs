@@ -381,6 +381,38 @@ impl SectorMap {
         self.counts_in(self.geometry.full_range())
     }
 
+    /// The unbroken defective span touching `lba`, if there is one.
+    ///
+    /// Runs of different defective states are one span here: a stretch that
+    /// failed to read and then returned altered content is not two findings to
+    /// someone watching a progress bar, it is one region where nothing answers.
+    ///
+    /// Both sides of `lba` are considered because the two phases travel in
+    /// opposite directions — writing runs back to front, verification front to
+    /// back — so the sectors just examined lie above the frontier in one and
+    /// below it in the other.
+    ///
+    /// This measures what is behind, never what is ahead. Nothing here licenses
+    /// a claim about area that was not examined.
+    pub fn defective_run_at(&self, lba: u64) -> Option<LbaRange> {
+        let at = |probe: u64| {
+            self.runs.iter().position(|r| r.range.contains(probe) && r.state.is_defective())
+        };
+        let seed = at(lba).or_else(|| at(lba.checked_sub(1)?))?;
+
+        // Runs tile the device without gaps, so walking the list is walking the
+        // addresses.
+        let mut first = seed;
+        while first > 0 && self.runs[first - 1].state.is_defective() {
+            first -= 1;
+        }
+        let mut last = seed;
+        while last + 1 < self.runs.len() && self.runs[last + 1].state.is_defective() {
+            last += 1;
+        }
+        Some(LbaRange::from_bounds(self.runs[first].range.start(), self.runs[last].range.end()))
+    }
+
     /// Tallies states inside one interval of the device.
     ///
     /// For a view that is about part of the card rather than all of it. The
@@ -532,6 +564,69 @@ mod tests {
 
     fn map(total: u64) -> SectorMap {
         SectorMap::new(DeviceGeometry::new(512, total).unwrap())
+    }
+
+    /// Different defective states in a row are one region to someone waiting,
+    /// not three findings. The span has to merge them or the figure offered to
+    /// the user would be a fraction of what actually failed.
+    #[test]
+    fn adjacent_defects_of_different_kinds_are_one_span() {
+        let mut m = map(10_000);
+        m.mark(LbaRange::from_bounds(0, 2_000), SectorState::Good);
+        m.mark(LbaRange::from_bounds(2_000, 3_000), SectorState::Corrupt);
+        m.mark(LbaRange::from_bounds(3_000, 3_500), SectorState::BadRead);
+        m.mark(LbaRange::from_bounds(3_500, 6_000), SectorState::Corrupt);
+        m.mark(LbaRange::from_bounds(6_000, 7_000), SectorState::Good);
+
+        let span = m.defective_run_at(4_000).expect("inside the damage");
+        assert_eq!(span, LbaRange::from_bounds(2_000, 6_000));
+        assert_eq!(span.len(), 4_000);
+    }
+
+    /// Verification runs front to back, so the frontier sits just past the
+    /// sector last examined. Asking about the frontier has to find the span
+    /// behind it, or the offer to stop would never appear.
+    #[test]
+    fn the_span_is_found_from_the_frontier_just_past_it() {
+        let mut m = map(10_000);
+        m.mark(LbaRange::from_bounds(0, 1_000), SectorState::Good);
+        m.mark(LbaRange::from_bounds(1_000, 5_000), SectorState::Corrupt);
+
+        assert_eq!(m.defective_run_at(5_000), Some(LbaRange::from_bounds(1_000, 5_000)));
+    }
+
+    #[test]
+    fn good_ground_reports_no_span() {
+        let mut m = map(10_000);
+        m.mark(LbaRange::from_bounds(0, 4_000), SectorState::Good);
+        m.mark(LbaRange::from_bounds(4_000, 5_000), SectorState::Corrupt);
+        m.mark(LbaRange::from_bounds(5_000, 10_000), SectorState::Good);
+
+        assert!(m.defective_run_at(2_000).is_none(), "no defect anywhere near 2000");
+        assert!(m.defective_run_at(8_000).is_none(), "8000 is good, and 7999 with it");
+    }
+
+    /// Untested is not a defect. Treating it as one would let the span grow
+    /// through area nobody has looked at, which is the claim this whole
+    /// program refuses to make.
+    #[test]
+    fn unexamined_area_never_extends_the_span() {
+        let mut m = map(10_000);
+        m.mark(LbaRange::from_bounds(0, 1_000), SectorState::Good);
+        m.mark(LbaRange::from_bounds(1_000, 3_000), SectorState::Corrupt);
+        // 3_000..10_000 is left untested.
+
+        assert_eq!(m.defective_run_at(2_000), Some(LbaRange::from_bounds(1_000, 3_000)));
+        assert!(m.defective_run_at(9_000).is_none());
+    }
+
+    #[test]
+    fn a_span_running_to_the_end_of_the_card_is_reported_whole() {
+        let mut m = map(10_000);
+        m.mark(LbaRange::from_bounds(0, 6_000), SectorState::Good);
+        m.mark(LbaRange::from_bounds(6_000, 10_000), SectorState::Corrupt);
+
+        assert_eq!(m.defective_run_at(9_999), Some(LbaRange::from_bounds(6_000, 10_000)));
     }
 
     #[test]
