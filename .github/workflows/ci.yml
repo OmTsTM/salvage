@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
@@ -16,7 +19,7 @@ jobs:
     # and return early rather than failing the run.
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -38,19 +41,30 @@ jobs:
       - name: Tests
         run: cargo test --workspace
 
-      # A dependency advisory is a defect like any other, and finding it at
-      # release time is finding it too late.
+  # A dependency advisory is a defect like any other, and finding it at release
+  # time is finding it too late.
+  #
+  # Its own job, on Linux, for two reasons: building cargo-audit would add
+  # minutes to the Windows job that everything else waits on, and running the
+  # tool directly avoids rustsec/audit-check, which publishes its result as a
+  # check run and so needs an API permission the workflow token does not carry.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
       - name: Dependency audit
-        uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo audit
 
   # The domain and application layers carry no OS dependency. Building them on
   # Linux proves that claim instead of merely asserting it in the README.
   portability:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Core and application build without Windows

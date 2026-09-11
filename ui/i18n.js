@@ -18,7 +18,7 @@
 
 const I18N = (() => {
   const DICT = {
-    /* ─────────────────────────────────────────────── português (Brasil) */
+    /* ─────────────────────────────────────────────── Portuguese (Brazil) */
     "pt-BR": {
       "lang.name": "Português (BR)",
 
@@ -349,7 +349,7 @@ const I18N = (() => {
         "acionada, ou o programa não está rodando como Administrador.",
     },
 
-    /* ─────────────────────────────────────────────────────────── english */
+    /* ─────────────────────────────────────────────────────────── English */
     en: {
       "lang.name": "English",
 
@@ -680,7 +680,7 @@ const I18N = (() => {
         "running as Administrator.",
     },
 
-    /* ─────────────────────────────────────────────────────────── español */
+    /* ─────────────────────────────────────────────────────────── Spanish */
     es: {
       "lang.name": "Español",
 
@@ -1020,7 +1020,7 @@ const I18N = (() => {
         "activado, o el programa no se está ejecutando como Administrador.",
     },
 
-    /* ────────────────────────────────────────────────────── 中文（简体） */
+    /* ────────────────────────────────────────────────────── Chinese (Simplified) */
     zh: {
       "lang.name": "中文",
 

@@ -820,7 +820,7 @@ mod tests {
             bad.len()
         );
 
-        // Longe do defeito, o cartao continua aproveitavel.
+        // Away from the defect, the card is still usable.
         assert_eq!(out.map.state_at(0), Some(SectorState::Good));
         assert_eq!(out.map.state_at(2000), Some(SectorState::Good));
         assert_eq!(out.map.state_at(4095), Some(SectorState::Good));
@@ -1181,7 +1181,7 @@ mod tests {
         let out = scan(&mut card);
         out.map.check_invariants().unwrap();
 
-        // Cada setor defeituoso precisa estar condenado, um a um.
+        // Every defective sector must be condemned, one by one.
         for r in &ranges {
             for lba in r.start()..r.end() {
                 assert!(
@@ -1199,7 +1199,7 @@ mod tests {
             out.map.counts().defective()
         );
 
-        // E a maior parte do cartao continua aproveitavel.
+        // And most of the card survives.
         assert!(out.map.counts().good > 3000, "too little usable space survived");
     }
 

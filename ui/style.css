@@ -66,7 +66,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ───────────────────────────────────────────────────────── barra superior */
+/* ───────────────────────────────────────────────────────── top bar */
 
 .topbar {
   display: flex;
@@ -164,7 +164,7 @@ body {
   margin: 22px 0 18px;
 }
 
-/* ──────────────────────────────────────────────────── campos e controles */
+/* ──────────────────────────────────────────────────── fields and controls */
 
 .field { margin-bottom: 15px; }
 
@@ -241,7 +241,7 @@ select:disabled { opacity: 0.5; }
 }
 .btn-danger:not(:disabled):hover { background: #2a1516; }
 
-/* ────────────────────────────────────────────── detalhes do dispositivo */
+/* ────────────────────────────────────────────── device details */
 
 .spec { margin: 0 0 14px; }
 .spec > div {
@@ -318,7 +318,7 @@ select:disabled { opacity: 0.5; }
 .prior-note p { margin: 6px 0 0; }
 .prior-note p:last-child { margin-bottom: 0; }
 
-/* ────────────────────────────────────────────────────── palco do cartão */
+/* ────────────────────────────────────────────────────── card stage */
 
 .stage {
   background: radial-gradient(ellipse at 50% 32%, #161f2b 0%, var(--bg) 72%);
@@ -395,7 +395,7 @@ select:disabled { opacity: 0.5; }
   font-size: 12.5px;
 }
 
-/* ──────────────────────────────────────────────────────────── progresso */
+/* ──────────────────────────────────────────────────────────── progress */
 
 .progress-block { width: min(430px, 100%); flex: 0 0 auto; }
 
@@ -436,7 +436,7 @@ select:disabled { opacity: 0.5; }
   min-height: 17px;
 }
 
-/* ─────────────────────────────────────────────────────────────── legenda */
+/* ─────────────────────────────────────────────────────────────── legend */
 
 .legend {
   list-style: none;
@@ -469,7 +469,7 @@ select:disabled { opacity: 0.5; }
   font-variant-numeric: tabular-nums;
 }
 
-/* ────────────────────────────────────────────────────────── diagnóstico */
+/* ────────────────────────────────────────────────────────── diagnosis */
 
 .assurance {
   white-space: nowrap;
@@ -524,7 +524,7 @@ select:disabled { opacity: 0.5; }
   vertical-align: -1px;
 }
 
-/* ───────────────────────────────────────────────────────────── planos */
+/* ───────────────────────────────────────────────────────────── layouts */
 
 .plan-list { margin: 14px 0; display: flex; flex-direction: column; gap: 9px; }
 
@@ -706,7 +706,7 @@ select:disabled { opacity: 0.5; }
 }
 
 
-/* ─────────────────────────────────────────── falha persistente e rodapé */
+/* ─────────────────────────────────────────── persistent failure and footer */
 
 /* Unlike the toast, this does not fade on its own: an error that vanishes
    before being read is an error that was never reported. */
@@ -1010,7 +1010,7 @@ select:disabled { opacity: 0.5; }
 .verdict-bad p { margin: 6px 0 0; color: var(--text-dim); }
 
 
-/* ─────────────────────────────────────────── faixa candidata */
+/* ─────────────────────────────────────────── candidate run */
 
 /* Area that neither failed nor was verified. Neither green nor red: it is an
    invitation to investigate, and should look like one. */

@@ -105,7 +105,7 @@ pub fn from_wide(buf: &[u16]) -> String {
     String::from_utf16_lossy(&buf[..end])
 }
 
-/// Ultimo erro do sistema, como `io::Error`.
+/// The calling thread's last system error, as an `io::Error`.
 pub fn last_error() -> io::Error {
     // SAFETY: `GetLastError` only reads the calling thread's error code and
     // neither takes nor returns pointers.
@@ -159,13 +159,14 @@ impl AlignedBuffer {
         unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len) }
     }
 
-    /// Tamanho do buffer.
+    /// Length of the buffer, in bytes.
     #[inline]
     pub fn len(&self) -> usize {
         self.len
     }
 
-    /// Se o buffer tem tamanho zero. Nunca ocorre: o construtor recusa.
+    /// Whether the buffer is empty. Never is: the constructor refuses a zero
+    /// length, and the field is immutable afterwards.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len == 0
@@ -427,7 +428,7 @@ pub fn volume_disk_numbers(handle: &OwnedHandle) -> io::Result<Vec<u32>> {
     Ok(out)
 }
 
-/// Posiciona o ponteiro do arquivo em um deslocamento absoluto.
+/// Moves the file pointer to an absolute offset.
 pub fn seek(handle: &OwnedHandle, offset: u64) -> io::Result<()> {
     let mut new_pos: i64 = 0;
     // SAFETY: `handle.raw()` is valid and `new_pos` is an `i64` live for the call.
@@ -497,7 +498,7 @@ pub fn update_disk_properties(handle: &OwnedHandle) -> io::Result<()> {
 /// Enumerates the GUID identifiers of every volume on the machine.
 pub fn enumerate_volume_guids() -> io::Result<Vec<String>> {
     let mut name = [0u16; MAX_PATH as usize];
-    // SAFETY: `name` tem MAX_PATH elementos, o tamanho informado.
+    // SAFETY: `name` holds MAX_PATH elements, exactly the size declared.
     let find = unsafe { FindFirstVolumeW(name.as_mut_ptr(), name.len() as u32) };
     if find == INVALID_HANDLE_VALUE {
         return Err(last_error());

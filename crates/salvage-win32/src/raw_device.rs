@@ -1,4 +1,4 @@
-//! Acesso bruto, por setor, a um dispositivo fisico do Windows.
+//! Raw sector access to a Windows physical device.
 
 use salvage_app::device::{BlockDevice, DeviceError};
 use salvage_core::DeviceGeometry;

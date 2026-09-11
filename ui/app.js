@@ -252,7 +252,7 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
-/* ───────────────────────────────────────────────────────────── utilidades */
+/* ───────────────────────────────────────────────────────────── helpers */
 
 /* Serious errors must not disappear on their own: anyone away from the screen
  * loses the only clue about what happened. They persist until the next action. */
@@ -280,7 +280,7 @@ function formatInt(n) {
   return window.I18N.nf(n);
 }
 
-/* ─────────────────────────────────────────────────── desenho do cartão */
+/* ─────────────────────────────────────────────────── card drawing */
 
 const canvas = $("sector-canvas");
 const ctx = canvas.getContext("2d", { alpha: false });
@@ -473,7 +473,7 @@ function humanBytes(bytes) {
   return window.I18N.bytes(bytes);
 }
 
-/* ─────────────────────────────────────────────────────────── dispositivos */
+/* ─────────────────────────────────────────────────────────── devices */
 
 async function refreshDevices() {
   try {
@@ -890,7 +890,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !$("modal").classList.contains("hidden")) closeModal(null);
 });
 
-/* ─────────────────────────────────────────────────────────────── planos */
+/* ─────────────────────────────────────────────────────────────── layouts */
 
 async function buildPlans() {
   const controls = $("plan-controls");
@@ -1120,7 +1120,7 @@ async function applyPlan() {
   }
 }
 
-/* ────────────────────────────────────────────────────────────── eventos */
+/* ────────────────────────────────────────────────────────────── events */
 
 /* Fills the language picker and redraws everything the language touches.
  *
@@ -1295,7 +1295,7 @@ window.addEventListener("resize", () => {
   }
 });
 
-/* ────────────────────────────────────────────────────────────── início */
+/* ────────────────────────────────────────────────────────────── startup */
 
 /* The splash holds the screen until this one has something worth looking at,
  * and the device list is the first thing anyone reads here.
