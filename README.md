@@ -219,19 +219,15 @@ band; a cluster map marks exactly the cells that failed and leaves their
 neighbours allocatable. FAT32 also caps a single file at 4 GiB. The interface
 prints both costs next to the option rather than only the larger number.
 
-<!-- DIAGRAM: fencing vs splicing
-     ─────────────────────────────────────────────────────────────────────────
-     Save as docs/layouts.png (~880×260) and replace this comment with an <img>.
+<p align="center">
+  <img src="docs/screenshot-layouts.png" alt="The layout chooser: four options, each with its size and its cost, the selected one expanded" width="331">
+</p>
 
-     Two stacked strips representing the same card, defects in red:
-       Top,    "Fenced":   one green segment (the largest clean run) labelled
-               "D: 12.4 GB", everything else hatched grey and labelled
-               "quarantine — not mounted".
-       Bottom, "Spliced":  one continuous green segment across the whole card
-               labelled "D: 19.7 GB", with the red defects shown as small marks
-               inside it and a caption "marked in the FAT, never allocated".
-     Same palette as the banner.
-     ───────────────────────────────────────────────────────────────────────── -->
+<p align="center">
+  <em>Every layout states what it costs beside what it yields, because the
+  option that recovers the most space is also the one that gives up the guard
+  band — and the larger number should not win by default.</em>
+</p>
 
 ### What a result looks like
 

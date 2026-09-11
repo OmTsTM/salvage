@@ -10,7 +10,7 @@ place it belongs, in an HTML comment inside `README.md` — search for `BANNER`,
 | `screenshot-scan.png` | 1256×939 | **done** |
 | `screenshot-verdict.png` | 348×610 | **done** |
 | `screenshot-consent.png` | 600×496 | **done** |
-| `screenshot-layouts.png` | ~420×700 | Still needed — see below |
+| `screenshot-layouts.png` | 331×680 | **done** — rendered, see below |
 | `write-order.png` | ~880×300 | Vector diagram |
 | `layouts.png` | ~880×260 | Vector diagram |
 
@@ -115,23 +115,31 @@ they are about to erase.
 Trigger it by selecting a device and pressing "Inspecionar cartão", then close
 the dialog without confirming. Nothing is written until the button is pressed.
 
-## screenshot-layouts.png — the chooser, ~420×700
+## screenshot-layouts.png — the chooser, 331×680
 
-The isolation section with layouts listed and one selected, so the expanded
-detail is visible: the size, the cost line, the partition bar and the rows
-beneath it.
+The only image here not captured from a device, and the reason is worth stating
+rather than hiding.
 
-**This one needs a card with defects and enough clean area between them.** Two
-states cannot produce it, and both were tried:
+The chooser appears when a card has defects *and* enough clean area between them
+to build something. Two real cards were tried and neither produces it:
 
 - A card that is nearly all bad — 99.9% condemned, largest clean run 17 MB —
   refuses every layout, because fencing needs 25 MB contiguous.
-- A card already fenced, re-inspected, comes back with no defect at all, and a
-  layout chooser has nothing to choose between.
+- The same card after fencing, re-inspected, comes back with no defect at all,
+  and a chooser has nothing to choose between.
 
-A card in between is what this picture needs. Skip it rather than staging one;
-neither of the above is a substitute, because each illustrates a different
-point.
+So this frame was produced by loading `ui/` in a browser and handing
+`buildPlans()` the response shape the backend returns, from
+`tools/harness/layouts.html`. **Every pixel is drawn by the shipped interface**
+— the same stylesheet, the same `renderPlanList`, the same wording tables. What
+is synthetic is the measurement: a 32 GB card with seven defect regions, which
+is a plausible card rather than one that was inspected.
+
+That distinction is the line this repository draws. Rendering the real interface
+with illustrative numbers shows how the program behaves. Generating a picture of
+an interface would show how it does not.
+
+Replace it with a capture the moment a card in that condition is to hand.
 
 ---
 
