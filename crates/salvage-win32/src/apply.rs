@@ -81,6 +81,13 @@ pub enum ApplyStep {
         /// Bytes the volume will actually offer.
         usable_bytes: u64,
     },
+    /// A table was stored for this card, and it is not a partition table.
+    ///
+    /// Sector 0 was read on the way past an earlier operation, and what was in
+    /// it then was the inspection's own pattern. Releasing the card still
+    /// works — it gets a full-capacity partition, the same as a card with
+    /// nothing stored — but the way back does not lead where it promised.
+    StoredTableUnusable,
     /// The partition table the card arrived with was put back.
     TableRestored {
         /// Whether it was the card's own table, or a full-capacity one made
@@ -464,6 +471,20 @@ pub fn prepare_card(
     Ok(ApplyOutcome { steps, data_volume_letter: letter, table_before })
 }
 
+/// Whether what is about to be written came off the card rather than from here.
+///
+/// Compared rather than assumed: a stored table that would not parse is
+/// replaced by an invented one, and reporting that as the card's own would be
+/// the wrong half of the only sentence the user gets about it.
+fn from_card_used(restored: &MasterBootRecord, table_before: Option<&[u8]>) -> bool {
+    match table_before {
+        Some(bytes) if bytes.len() >= MBR_SIZE => {
+            restored.to_bytes()[..MBR_SIZE] == bytes[..MBR_SIZE]
+        }
+        _ => false,
+    }
+}
+
 /// Removes this program's layout and gives the card back.
 ///
 /// # What this does and does not undo
@@ -498,15 +519,31 @@ pub fn release_card(
 
     // Either the table the card arrived with, or a single partition over
     // everything it reports.
-    let restored = match table_before {
-        Some(bytes) if bytes.len() >= MBR_SIZE => MasterBootRecord::from_bytes(&bytes[..MBR_SIZE])?,
-        _ => MasterBootRecord::single_partition(
+    //
+    // A stored table that will not parse is treated as no table at all rather
+    // than as a failure. Records written before the capture was checked can
+    // hold 512 bytes of inspection pattern instead of a partition table, and
+    // refusing to release the card over that would strand it: the way out
+    // would be barred by the one thing meant to make the way out possible.
+    let from_card = table_before
+        .filter(|bytes| bytes.len() >= MBR_SIZE)
+        .and_then(|bytes| MasterBootRecord::from_bytes(&bytes[..MBR_SIZE]).ok());
+
+    // Kept apart from "nothing was stored", because they are different facts
+    // and the second would be a lie about the first.
+    if from_card.is_none() && table_before.is_some() {
+        steps.push(ApplyStep::StoredTableUnusable);
+    }
+
+    let restored = match from_card {
+        Some(mbr) => mbr,
+        None => MasterBootRecord::single_partition(
             &device.geometry,
             filesystem,
             disk_signature_for(device),
         )?,
     };
-    steps.push(ApplyStep::TableRestored { from_card: table_before.is_some() });
+    steps.push(ApplyStep::TableRestored { from_card: from_card_used(&restored, table_before) });
 
     let mut dev = RawBlockDevice::open(&device.path, Access::ReadWrite)
         .map_err(|e| ApplyError::Device(e.to_string()))?;

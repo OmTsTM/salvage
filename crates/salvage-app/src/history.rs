@@ -38,6 +38,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use salvage_core::mbr::MasterBootRecord;
 use salvage_core::pattern::PatternKind;
 use salvage_core::sector_map::SectorMap;
 use serde::{Deserialize, Serialize};
@@ -108,8 +109,25 @@ impl CardRecord {
     /// Kept only the first time. A second fencing would otherwise record the
     /// first one's table as "what was there before", and the way back would
     /// lead to a layout this program wrote rather than to the card's own.
+    ///
+    /// # Why it checks
+    ///
+    /// Sector 0 is read on the way past, whatever is in it. After an inspection
+    /// what is in it is the pattern — the scan writes over the partition table
+    /// with everything else — so the bytes offered here are routinely not a
+    /// table at all. Storing them made releasing the card fail with
+    /// `boot signature missing: found 0xcc1c, expected 0xAA55`, which is the
+    /// pattern's own bytes read as a signature.
+    ///
+    /// The way back has to lead somewhere real, so this keeps only what parses
+    /// as a partition table. Anything else is no worse than nothing: releasing
+    /// a card with no stored table gives it a single full-capacity partition,
+    /// which is exactly what a card whose table was overwritten needs.
     pub fn remember_table(&mut self, bytes: &[u8]) {
-        if self.table_before.is_none() && bytes.len() >= TABLE_BYTES {
+        if self.table_before.is_some() || bytes.len() < TABLE_BYTES {
+            return;
+        }
+        if MasterBootRecord::from_bytes(&bytes[..TABLE_BYTES]).is_ok() {
             self.table_before = Some(bytes[..TABLE_BYTES].to_vec());
         }
     }
@@ -247,13 +265,50 @@ mod tests {
     #[test]
     fn the_original_table_is_captured_once_and_never_replaced() {
         let mut record = CardRecord::new(FP, map());
-        let original = vec![0xAA; TABLE_BYTES];
-        let ours = vec![0xBB; TABLE_BYTES];
+        let mut original = vec![0xAA; TABLE_BYTES];
+        original[510] = 0x55;
+        original[511] = 0xAA;
+        let mut ours = vec![0xBB; TABLE_BYTES];
+        ours[510] = 0x55;
+        ours[511] = 0xAA;
 
         record.remember_table(&original);
         record.remember_table(&ours);
 
         assert_eq!(record.table_before.as_deref(), Some(&original[..]));
+    }
+
+    /// The bug this exists for. Sector 0 is read on the way past, and after an
+    /// inspection what is in it is the pattern — the scan writes over the
+    /// partition table with everything else. Storing those bytes as "the card's
+    /// own table" made releasing the card fail with
+    /// `boot signature missing: found 0xcc1c, expected 0xAA55`, which is the
+    /// pattern's own bytes read as a signature.
+    #[test]
+    fn the_inspection_pattern_is_not_mistaken_for_a_table() {
+        let mut record = CardRecord::new(FP, map());
+
+        // The real bytes, from the card that reported it.
+        let mut pattern = vec![0u8; TABLE_BYTES];
+        pattern[..8].copy_from_slice(&[0xa5, 0x00, 0x31, 0x50, 0x41, 0x4d, 0x44, 0x53]);
+        pattern[510] = 0x1c;
+        pattern[511] = 0xcc;
+
+        record.remember_table(&pattern);
+        assert!(record.table_before.is_none(), "the pattern is not a way back");
+    }
+
+    /// And a real table still goes in, or the check would have cured the
+    /// symptom by removing the feature.
+    #[test]
+    fn a_real_partition_table_is_kept() {
+        let mut record = CardRecord::new(FP, map());
+        let mut table = vec![0u8; TABLE_BYTES];
+        table[510] = 0x55;
+        table[511] = 0xAA;
+
+        record.remember_table(&table);
+        assert_eq!(record.table_before.as_deref(), Some(&table[..]));
     }
 
     #[test]

@@ -215,6 +215,10 @@ const I18N = (() => {
       "remembered.use": "Usar o resultado guardado",
       "remembered.adopted": "Resultado guardado adotado. Aplicar um layout ainda pede nova inspeção.",
       "remembered.unknownAge": "em data desconhecida",
+      "step.stored_table_unusable":
+        "A tabela guardada para este cartão não é uma tabela de partições: o setor 0 " +
+        "foi lido quando ainda continha o padrão da inspeção. O cartão recebeu uma " +
+        "partição cobrindo toda a capacidade, como se nada tivesse sido guardado.",
       "step.table_restored_card":
         "Tabela de partições original do cartão restaurada.",
       "step.table_restored_full":
@@ -662,6 +666,10 @@ const I18N = (() => {
       "remembered.use": "Use the stored result",
       "remembered.adopted": "Stored result adopted. Applying a layout still needs a fresh inspection.",
       "remembered.unknownAge": "at an unknown date",
+      "step.stored_table_unusable":
+        "The table stored for this card is not a partition table: sector 0 was read " +
+        "while it still held the inspection's pattern. The card was given a partition " +
+        "spanning its full capacity, as though nothing had been stored.",
       "step.table_restored_card":
         "The card's original partition table was restored.",
       "step.table_restored_full":
@@ -1114,6 +1122,10 @@ const I18N = (() => {
       "remembered.use": "Usar el resultado guardado",
       "remembered.adopted": "Resultado guardado adoptado. Aplicar un diseño aún requiere una inspección nueva.",
       "remembered.unknownAge": "en fecha desconocida",
+      "step.stored_table_unusable":
+        "La tabla guardada para esta tarjeta no es una tabla de particiones: el sector 0 " +
+        "se leyó cuando aún contenía el patrón de la inspección. La tarjeta recibió una " +
+        "partición que abarca toda su capacidad, como si no se hubiera guardado nada.",
       "step.table_restored_card":
         "Se restauró la tabla de particiones original de la tarjeta.",
       "step.table_restored_full":
@@ -1543,6 +1555,9 @@ const I18N = (() => {
       "remembered.use": "使用已保存的结果",
       "remembered.adopted": "已采用保存的结果。应用布局仍需重新检测。",
       "remembered.unknownAge": "日期未知",
+      "step.stored_table_unusable":
+        "为这张卡保存的表并不是分区表：读取扇区 0 时，它里面还是检测写入的图案。" +
+        "这张卡获得了一个覆盖全部容量的分区，就像什么都没保存过一样。",
       "step.table_restored_card": "已恢复这张卡原本的分区表。",
       "step.table_restored_full": "未保存原始分区表：已为这张卡创建一个覆盖全部容量的单一分区。",
       "ui.volumeLabel": "卷名",

@@ -200,6 +200,8 @@ function stepMessage(s) {
       });
     case "partition_head_wiped":
       return t("step.partition_head_wiped", { label: s.label });
+    case "stored_table_unusable":
+      return t("step.stored_table_unusable");
     case "table_restored":
       return t(s.from_card ? "step.table_restored_card" : "step.table_restored_full");
     case "table_written":
