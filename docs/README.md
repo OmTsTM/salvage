@@ -13,6 +13,7 @@ place it belongs, in an HTML comment inside `README.md` — search for `BANNER`,
 | `screenshot-layouts.png` | 331×680 | **done** — rendered, see below |
 | `write-order.svg` | 880×300 | `python tools/gen_diagrams.py` |
 | `layouts.svg` | 880×260 | `python tools/gen_diagrams.py` |
+| `support.png` | 880×260 | `python tools/gen_support.py` |
 
 Only the banner and `screenshot-scan.png` are worth doing first. Everything else
 deepens the page rather than carrying it.
@@ -163,6 +164,28 @@ read their defect positions from the same list, so the picture cannot end up
 claiming the two mechanisms were handed different cards.
 
 To change either, edit the script and re-run.
+
+# support.png — composited, not generated
+
+Produced by [`tools/gen_support.py`](../tools/gen_support.py):
+
+```powershell
+python tools/gen_support.py
+```
+
+Composited for the same reasons as the banner: the lion is
+`assets/icon-source.png` itself, the colours are the interface's own constants,
+and the nick is drawn by a font rather than approximated by a model that would
+misspell it.
+
+The one colour from outside the palette above is Ko-fi's red, `#FF5E5B`, and it
+appears only on the words that are Ko-fi's. A support card repainted in a
+donation platform's brand would read as an advertisement wearing the project's
+clothes.
+
+The green stripe is the same pair the verdict panel draws, at the proportion
+measured on the 33.56 GB card this program was built against — 15.69 GB given
+back. It is there because it is what the donation would be for.
 
 ## write-order.svg
 

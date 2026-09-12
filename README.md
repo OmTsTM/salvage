@@ -14,6 +14,7 @@
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square"></a>
   <img alt="Windows" src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square">
   <img alt="Rust" src="https://img.shields.io/badge/rust-1.82%2B-e43717?style=flat-square">
+  <a href="https://ko-fi.com/omtstm"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/Ko--fi-support-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white"></a>
 </p>
 
 ---
@@ -58,6 +59,7 @@ visible partition backed only by area that was verified byte for byte.
 - [Architecture](#architecture)
 - [Testing](#testing)
 - [Limitations](#limitations)
+- [Support](#support)
 
 ---
 
@@ -517,6 +519,29 @@ keeps contrast above 4.5:1 throughout.
 - **A full inspection takes hours.** A 128 GB card at 17 MB/s is roughly two
   hours to write and two to verify. There is no shortcut that also proves
   anything.
+
+---
+
+## Support
+
+<p align="center">
+  <a href="https://ko-fi.com/omtstm">
+    <img src="docs/support.png" alt="omtstm on Ko-fi — if Salvage got your card back, you can buy me a coffee. Anything from $5, and thank you." width="880">
+  </a>
+</p>
+
+Salvage is free, MIT-licensed, and built in the open. If it gave you back a card
+you had written off, you can put something in the tip jar — **anything from $5**,
+and it is genuinely appreciated.
+
+<p align="center">
+  <a href="https://ko-fi.com/omtstm">
+    <img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-ko--fi.com%2Fomtstm-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Buy me a coffee on Ko-fi">
+  </a>
+</p>
+
+Nothing here is gated behind it. There is no paid tier, no nag screen, and the
+program will never ask — the link in the window's footer is the whole of it.
 
 ---
 
