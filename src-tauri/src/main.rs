@@ -1057,7 +1057,7 @@ fn finish_launch(app: AppHandle) {
 /// Administrator, and a command that opened whatever address the window handed
 /// it would be an arbitrary-launch surface inside an elevated process — the
 /// window being the part of this program most exposed to what renders in it.
-const AUTHOR_URL: &str = "https://x.com/omtstm";
+const AUTHOR_URL: &str = "https://ko-fi.com/omtstm";
 
 /// Opens the author's page in the user's browser.
 ///
