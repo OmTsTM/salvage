@@ -262,10 +262,37 @@ const state = {
   plans: [],
   selectedPlan: null,
   scanning: false,
+  fsTouched: false,  // the filesystem menu stops guessing once it is touched
   watchdogAlarmed: false,   // so the alarm can be withdrawn, and only that alarm
 };
 
 const $ = (id) => document.getElementById(id);
+
+/* Where the filesystem default flips.
+ *
+ * Exactly Windows' own FAT32 ceiling — `FORMAT_COM_FAT32_LIMIT` in
+ * salvage-win32/src/apply.rs. Below it a card is usually going somewhere that
+ * wants maximum compatibility, and every tool can make the volume. Above it
+ * exFAT is the norm, and FAT32 becomes a deliberate choice this program is
+ * unusually able to carry out.
+ *
+ * A default, not a rule. The menu keeps both options and the labels say what
+ * each costs, so a drift from the backend constant would cost a preselection
+ * rather than a guarantee. */
+const FAT32_DEFAULT_CEILING_BYTES = 32 * 1024 * 1024 * 1024;
+
+/* Preselects the filesystem the card is most likely for.
+ *
+ * Left alone once the user has touched the menu: a guess may open the question
+ * but must not answer it twice, and re-selecting the same card should not undo
+ * a choice already made about it. */
+function preselectFilesystem(device) {
+  if (state.fsTouched || !device) return;
+  const select = $("fs-select");
+  if (!select) return;
+  select.value =
+    device.capacity_bytes < FAT32_DEFAULT_CEILING_BYTES ? "fat32" : "exfat";
+}
 
 /* ───────────────────────────────────────────────────────────── helpers */
 

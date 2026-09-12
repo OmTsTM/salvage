@@ -374,6 +374,7 @@ fn release_card(
         guard.map = None;
         guard.baseline = None;
         guard.report = None;
+        guard.left_erased = false;
         guard.plans.clear();
     }
 
@@ -447,6 +448,9 @@ fn prepare_card(
     // before this program wrote a table is the only way back to it.
     if let Some(table) = outcome.table_before.as_deref() {
         remember_table(&device, table);
+    }
+    if let Ok(mut guard) = state.lock() {
+        guard.left_erased = false;
     }
 
     Ok(ApplyView { steps: outcome.steps, drive_letter: outcome.data_volume_letter, prior: None })
@@ -716,6 +720,7 @@ fn start_scan(typed_name: String, app: AppHandle, state: State<'_, Shared>) -> R
                 // distinguishes a stable defect from active degradation.
                 guard.baseline = Some(map.clone());
                 guard.verified_now = true;
+                guard.left_erased = true;
                 guard.retention = Some(outcome.retention);
                 remember(&device, &map, (config.nonce, config.pattern));
                 guard.map = Some(map);
@@ -987,6 +992,7 @@ fn apply(
     let prior = read_prior_layout(&device);
     let prior_view = prior.as_ref().map(PriorLayoutView::from);
     if let Ok(mut guard) = state.lock() {
+        guard.left_erased = false;
         guard.view_span = prior
             .as_ref()
             .and_then(PriorLayout::data_span)
@@ -1157,12 +1163,24 @@ fn main() {
                 return;
             }
             if let WindowEvent::CloseRequested { api, .. } = event {
-                let scanning =
-                    window.state::<Shared>().lock().map(|guard| guard.scanning).unwrap_or(false);
+                let (scanning, left_erased) = window
+                    .state::<Shared>()
+                    .lock()
+                    .map(|guard| (guard.scanning, guard.left_erased))
+                    .unwrap_or((false, false));
+
                 if scanning {
                     api.prevent_close();
                     log("close requested during a scan; asking");
                     let _ = window.emit("app:close-requested", ());
+                } else if left_erased {
+                    // Nothing is at risk and nothing needs stopping. What the
+                    // user is about to walk away from is a card this program
+                    // emptied and never gave a filesystem to, and the only
+                    // thing that fixes that is on the screen behind this.
+                    api.prevent_close();
+                    log("close requested with the card left unformatted; asking");
+                    let _ = window.emit("app:close-erased", ());
                 }
             }
         })

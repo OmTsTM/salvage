@@ -50,6 +50,15 @@ pub struct AppState {
     /// How long each sector waited between write and verification, for the
     /// inspection that produced the working map.
     pub retention: Option<salvage_app::scan::RetentionWindow>,
+    /// Whether this session left the card with nothing on it.
+    ///
+    /// An inspection writes its pattern over every sector, the partition table
+    /// included, so a card that finishes one has no filesystem until something
+    /// gives it one. Set when a scan completes and cleared when a table is
+    /// written, so closing the window at that moment can say what is being left
+    /// behind — Windows will offer to format the card, and above 32 GiB its
+    /// offer does not include FAT32.
+    pub left_erased: bool,
     /// Whether the working map was produced by an inspection in this session.
     ///
     /// False when it came from a record. A map in that state describes hardware

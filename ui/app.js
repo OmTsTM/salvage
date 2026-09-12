@@ -82,6 +82,8 @@ async function selectDevice(path) {
     return;
   }
 
+  state.fsTouched = false;
+  preselectFilesystem(state.selected);
   renderDeviceDetails(state.selected);
 
   // Switching cards invalidates the previous diagnosis and plans.
@@ -587,6 +589,7 @@ $("btn-stop-early").addEventListener("click", () => invoke("cancel_scan").catch(
 // no defects gets, and put "this card cannot be partitioned" over the offer to
 // format it.
 $("fs-select").addEventListener("change", () => {
+  state.fsTouched = true;
   if ($("plan-prepare").classList.contains("hidden")) buildPlans();
 });
 $("btn-apply").addEventListener("click", applyPlan);
@@ -688,6 +691,37 @@ listen("app:close-requested", async () => {
 
   if (stop) {
     toast(t("close.leaving"), "");
+    invoke("stop_and_close").catch((e) => showFailure(t(String(e))));
+  }
+});
+
+/* Closing with the card left empty and unformatted.
+ *
+ * Nothing is at risk and nothing needs stopping — the question is only whether
+ * the user knows what they are walking away from. An inspection writes over the
+ * partition table along with everything else, so the card will not mount until
+ * something gives it a filesystem, and the thing that does is on the screen
+ * behind this box. */
+listen("app:close-erased", async () => {
+  if (closePromptOpen) return;
+  closePromptOpen = true;
+
+  const d = state.selected;
+  const name = d ? escapeHtml(d.name) : t("ui.thecard");
+  // Above the ceiling Windows' own offer to format will not include FAT32, so
+  // accepting it forecloses a choice this program can still carry out.
+  const big = d && d.capacity_bytes >= FAT32_DEFAULT_CEILING_BYTES;
+  const leave = await openChoice({
+    title: t("erased.title"),
+    bodyHtml:
+      `<p>${escapeHtml(t("erased.body", { name }))}</p>` +
+      (big ? `<p>${escapeHtml(t("erased.noFat32"))}</p>` : ""),
+    confirmLabel: t("erased.leave"),
+    cancelLabel: t("erased.stay"),
+  });
+  closePromptOpen = false;
+
+  if (leave) {
     invoke("stop_and_close").catch((e) => showFailure(t(String(e))));
   }
 });

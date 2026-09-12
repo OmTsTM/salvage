@@ -370,6 +370,17 @@ const I18N = (() => {
       "apply.where": "A área confiável está disponível em <strong>{letter}:</strong>",
       "apply.done": "Reparticionamento concluído.",
 
+      "erased.title": "O cartão ficou sem sistema de arquivos",
+      "erased.body":
+        "A inspeção gravou sobre todos os setores de {name}, a tabela de partições " +
+        "inclusive, então ele não vai montar em lugar nenhum até receber um sistema de " +
+        "arquivos. O botão de formatar na tela atrás desta caixa faz isso.",
+      "erased.noFat32":
+        "O Windows vai oferecer para formatá-lo, e aceitar essa oferta serve — mas ela " +
+        "não inclui FAT32 acima de 32 GB. Se este cartão vai para um aparelho que só " +
+        "entende FAT32, é aqui que ele consegue.",
+      "erased.leave": "Fechar assim mesmo",
+      "erased.stay": "Voltar e formatar",
       "close.title": "Inspeção em andamento",
       "close.body":
         "<p class=\"destructive\">Há uma inspeção em andamento em {name}.</p>" +
@@ -805,6 +816,17 @@ const I18N = (() => {
       "apply.where": "The reliable area is available at <strong>{letter}:</strong>",
       "apply.done": "Repartitioning complete.",
 
+      "erased.title": "The card was left without a filesystem",
+      "erased.body":
+        "The inspection wrote over every sector of {name}, the partition table " +
+        "included, so it will not mount anywhere until something gives it a filesystem. " +
+        "The format button on the screen behind this box does that.",
+      "erased.noFat32":
+        "Windows will offer to format it, and taking that offer works — but it does not " +
+        "include FAT32 above 32 GB. If this card is going into something that only reads " +
+        "FAT32, here is where it can get one.",
+      "erased.leave": "Close anyway",
+      "erased.stay": "Go back and format",
       "close.title": "Inspection in progress",
       "close.body":
         "<p class=\"destructive\">An inspection is running on {name}.</p>" +
@@ -1247,6 +1269,18 @@ const I18N = (() => {
       "apply.where": "El área fiable está disponible en <strong>{letter}:</strong>",
       "apply.done": "Reparticionado terminado.",
 
+      "erased.title": "La tarjeta quedó sin sistema de archivos",
+      "erased.body":
+        "La inspección escribió sobre todos los sectores de {name}, incluida la tabla de " +
+        "particiones, así que no se montará en ninguna parte hasta que algo le dé un " +
+        "sistema de archivos. El botón de formatear en la pantalla detrás de este cuadro " +
+        "hace eso.",
+      "erased.noFat32":
+        "Windows ofrecerá formatearla, y aceptar esa oferta funciona, pero no incluye " +
+        "FAT32 por encima de 32 GB. Si esta tarjeta va a un aparato que solo lee FAT32, " +
+        "aquí es donde puede conseguirlo.",
+      "erased.leave": "Cerrar de todos modos",
+      "erased.stay": "Volver y formatear",
       "close.title": "Inspección en curso",
       "close.body":
         "<p class=\"destructive\">Hay una inspección en curso en {name}.</p>" +
@@ -1620,7 +1654,16 @@ const I18N = (() => {
       "apply.where": "可靠区域已挂载在 <strong>{letter}:</strong>",
       "apply.done": "重新分区完成。",
 
-      "close.title": "检测正在进行",
+      "erased.title": "这张卡被留在了没有文件系统的状态",
+      "erased.body":
+        "检测已覆写 {name} 的每一个扇区，分区表也在其中，因此在有东西为它建立文件系统之前，" +
+        "它在任何地方都无法挂载。这个对话框后面那个格式化按钮就是做这件事的。",
+      "erased.noFat32":
+        "Windows 会提议格式化它，接受这个提议也可行——但它在 32 GB 以上不提供 FAT32。" +
+        "如果这张卡要放进只认 FAT32 的设备，这里才能给它。",
+      "erased.leave": "仍然关闭",
+      "erased.stay": "返回并格式化",
+            "close.title": "检测正在进行",
       "close.body":
         "<p class=\"destructive\">{name} 上有一次检测正在进行。</p>" +
         "<p>现在关闭会中断这一遍。已经写入卡上的内容无法恢复，也不会有任何区域被认定合格：" +
