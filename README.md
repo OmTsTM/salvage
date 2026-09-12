@@ -58,6 +58,7 @@ visible partition backed only by area that was verified byte for byte.
 - [Building from source](#building-from-source)
 - [Architecture](#architecture)
 - [Testing](#testing)
+- [Accessibility](#accessibility)
 - [Limitations](#limitations)
 - [Support](#support)
 
@@ -69,7 +70,7 @@ Download the installer from the [latest release](../../releases/latest) and run
 it. Nothing has to be installed first and no internet connection is needed: the
 installer carries the WebView2 runtime the window renders with.
 
-That runtime is why the installer is around 260 MB for a 4 MB program. It is the
+That runtime is why the installer is around 210 MB for a 4 MB program. It is the
 price of being genuinely self-contained, and it is paid only at install time.
 
 A **portable** `Salvage-x.y.z-portable.exe` (about 4 MB) is published alongside
@@ -80,6 +81,10 @@ it relies on the WebView2 runtime already being present — which it is on Windo
 Salvage needs **Administrator** privileges: raw disk access is not available to a
 normal user. The shortcut requests elevation on launch, so Windows asks on every
 start. That prompt is expected.
+
+The interface speaks **Portuguese, English, Spanish and Chinese**, chosen from
+the system language. Anything else falls back to English rather than to the
+language it was first written in.
 
 > [!NOTE]
 > Windows SmartScreen will warn about an unrecognised publisher. The build is not
@@ -106,9 +111,12 @@ the result can be trusted.
 | **Spare blocks exhausted** | The reserve the controller used to replace dying cells ran out; defects froze onto fixed addresses. | Mitigates well, but the card is near end of life. Keep a copy. |
 | **Actively degrading** | Sectors that passed one pass fail the next. | **No.** Tomorrow's bad sectors do not exist yet. |
 
-There is deliberately no "guaranteed" assurance level, and a test
-(`assurance_never_claims_a_guarantee`) fails the build if that wording is ever
-reintroduced.
+There is deliberately no "guaranteed" assurance level. `Assurance` is an enum
+whose best variant is `High`, so the ceiling is a property of the type rather
+than a habit of phrasing — and since the window words each level from a table
+keyed by the variant's own identifier, there is no free text anywhere that could
+drift into a promise. Adding one would be a deliberate edit to the domain, not a
+slip.
 
 ---
 
@@ -147,17 +155,25 @@ The write pass therefore walks the device **back to front**.
   <img src="docs/write-order.svg" alt="Two strips showing the same counterfeit card: written front to back the real half is condemned, written back to front the diagnosis comes out right" width="880">
 </p>
 
-### Retention, not acceptance
+### Acceptance is not retention, and the scan says which it measured
 
-Reading back immediately after writing measures only whether the cell *accepted*
-the data — the read may be served from the controller's cache. A configurable
-delay between the write and verify passes turns the scan into a **retention**
-test: is the data still there afterwards?
+Reading back after writing measures whether the cell *accepted* the data and
+gave it back. It does not measure whether the cell still holds it tomorrow. A
+worn cell answers the first question correctly and the second badly, and that is
+how a card passes an inspection and loses files overnight. A card tested during
+development accepted all 245 million writes without one failure, then lost 99.9%
+of them.
 
-Some cards answer yes to the first question and no to the second, and those are
-precisely the ones that destroy files without reporting a single error. A card
-tested during development accepted all 245 million writes without one failure,
-then lost 99.9% of them.
+So the verdict states the interval it actually measured, rather than implying
+durability it did not. Because the write pass travels back to front and the
+verify pass front to back, the sector written last is verified first and the
+sector written first is verified last: those two are the extremes and every
+other sector falls between them, so the bounds come out of four clock readings
+with no assumption about the rate. On a 252 GB run they were a quarter of a
+second and two hours.
+
+Answering the longer question takes a second visit, days later — see
+[Re-checking what it still holds](#going-back-and-not-starting-over).
 
 ### Large blocks, sufficient precision
 
@@ -173,6 +189,26 @@ Devices are opened with `FILE_FLAG_NO_BUFFERING`. This is a **correctness**
 requirement, not an optimisation: with the Windows cache in the path, a read
 issued after a write can be served from RAM without ever reaching the card, and
 aliasing would never be detected.
+
+### Offering to stop, without making the prediction
+
+Once a gigabyte of unbroken damage has gone past, the window offers to stop. A
+sector that fails takes far longer to fail than a good one takes to pass — the
+card behind this work read its damaged half at 5 MB/s against 23 MB/s writing —
+so the remaining hours are spent confirming what already looks certain.
+
+What it must not do is say the rest of the card is bad. It has not looked, and
+the one thing this program exists not to do is report what it did not measure.
+So the note states three measured facts — where the damage began, what stopping
+preserves, and what stopping gives up — and leaves the inference to the person,
+who is entitled to make it.
+
+Stopping costs no usable space: unexamined area is withheld from data exactly as
+failed area is, so the approved total is identical either way. What it costs is
+the diagnosis. A card lying about its capacity gives itself away in the tail,
+and area surviving past the damage would be found there too. The note says both,
+because "cancel" otherwise reads as abort and nobody presses it believing they
+will keep what is already proven.
 
 ---
 
@@ -244,7 +280,7 @@ finds what still works, proves it, and puts a boundary around it.
 ### Going back, and not starting over
 
 Fencing was a one-way door: a card given a layout was limited to the sliver that
-survived, permanently. Two things address that, and both are shaped by the same
+survived, permanently. Three things address that, and all are shaped by the same
 rule as everything else.
 
 **Releasing a card** restores its full capacity. The table it arrived with is
@@ -272,6 +308,34 @@ sectors about to be used. A defect that appeared outside the approved area
 changes nothing, because that area was already condemned; a defect that appeared
 inside it is precisely what the re-verification finds.
 
+**Re-checking what it still holds** is the second visit the inspection itself
+cannot make. It re-reads the approved area and compares each sector against the
+pattern the earlier scan wrote there, and so answers the question that matters
+after a card has sat for a week: is the data still in the cells?
+
+It writes nothing. The device is opened `Access::Read`, so that is the operating
+system's guarantee rather than a promise in a comment — which is also why it is
+the one destructive-looking button on the screen that asks for no typed name.
+There is nothing to consent to. It needs the seed, because the expected content
+of a sector is computed from the nonce and the sector's own address, so a record
+written before the seed was stored simply does not offer the check rather than
+running it against a guess.
+
+Sectors carrying **no recognisable header at all** are counted apart from
+corrupt ones, and that separation is the whole safety of the feature. One such
+sector is severe retention loss; most of the area answering that way means
+something else wrote to the card since. The two are indistinguishable from
+inside a sector, so the window reports that the pattern is gone and claims
+neither reading. Without it, re-checking a card that had been formatted would
+have condemned 235 GB of healthy flash.
+
+What it measures merges onto the stored map rather than replacing it: the
+re-read covers only the approved area, and adopting it wholesale would mark the
+condemned half untested and turn a diagnosis into "nothing proven". What was
+re-measured overwrites; what was not looked at keeps standing. `verified_now`
+then becomes true, which is the gate above stated in the other direction — the
+area a layout would use has been read back today.
+
 ### When the card turns out to be fine
 
 An inspection writes its pattern over every sector, so a card leaves it erased
@@ -297,6 +361,24 @@ Measured on a 252.87 GB card: inspected in 1h58 with no defect in 493,895,680
 sectors, then given a single FAT32 volume of 235.45 GiB — 7.4 times the largest
 Windows will create. `chkdsk` audits it as sound, across 7,715,107 allocation
 units, and a 2 GiB file written and read back matches byte for byte.
+
+The step stays a step, because it is two choices the program cannot make for
+anyone. The filesystem is not a technical detail — FAT32 caps a file at 4 GiB
+and is what a car stereo reads; exFAT has no cap and breaks older hardware — and
+size does not settle it, since a 64 GB card can still be going into something
+that only reads FAT32. And formatting destroys the pattern the inspection wrote,
+which is the reference the retention re-check compares against: doing it
+automatically would close off, on exactly the healthy cards, the one measurement
+that answers whether a card holds data overnight.
+
+What it does instead is guess well and say what is at stake. The menu opens on
+FAT32 below 32 GiB and exFAT above — Windows' own FAT32 ceiling, which is where
+the question changes shape — and touching it stops the guessing for that card.
+And closing the window with a card left erased now asks, rather than letting
+Windows be the one to say "you need to format this disk", which above the
+ceiling steers toward exFAT and away from the one thing this program can still
+do. The prompt names that, and only above the ceiling where it is true. Closing
+anyway stays one click.
 
 ### The invariant everything rests on
 
@@ -333,8 +415,8 @@ Additionally, to produce an installer:
 | Requirement | Why | Install |
 |---|---|---|
 | **Tauri CLI** | Bundles the installer | `cargo install tauri-cli --locked` |
-| **Python 3 + Pillow** | Renders the icon sizes from the source artwork | `pip install pillow` |
-| **Node.js** | Only to syntax-check the window scripts before a release | [nodejs.org](https://nodejs.org) |
+| **Python 3 + Pillow** | Renders the icon sizes, and checks that every step the backend can emit has wording in all four languages | `pip install pillow` |
+| **Node.js** | Syntax-checks the window scripts, and renders every sentence that takes arguments against the shipped dictionary | [nodejs.org](https://nodejs.org) |
 
 ### Run it without building an installer
 
@@ -350,13 +432,13 @@ disk.
 ### Build the installer and the portable executable
 
 ```powershell
-pwsh tools/build_release.ps1 -Version 0.5.6
+pwsh tools/build_release.ps1 -Version 0.7.9
 ```
 
 One command from a clean checkout to something a person can double-click. It:
 
 1. renders every icon size from `assets/icon-source.png`;
-2. syntax-checks the window scripts, then runs `cargo fmt --check`, `clippy -D warnings` and the test suite — a release is never cut from a tree that would fail CI;
+2. runs the same gate CI runs — window scripts syntax-checked, interface strings checked for a step the backend can emit with nothing to say about it, sentences rendered against their real arguments, then `cargo fmt --check`, `clippy -D warnings` and the test suite. A release is never cut from a tree that would fail CI;
 3. bundles the installer;
 4. collects both artifacts in `dist/`.
 
@@ -440,6 +522,7 @@ crates/salvage-win32/    The only crate containing unsafe.
    enumerate.rs          Disk and volume discovery
    apply.rs              Partition table writing, formatting, preparation and release
    history.rs            Card records on disk
+   text.rs               English wording for the command-line tools
 
 src-tauri/               Bridge to the window. No business rules.
    main.rs               The command surface the window calls, and the launch
@@ -462,8 +545,17 @@ fine". A healthy card fits in a single entry.
 
 **The domain returns classifications and numbers, never sentences.** Wording
 lives in the presentation layers, in lookup tables keyed by those
-classifications. Translating the interface is a table swap, not a hunt through
-the logic.
+classifications — `text.rs` for the command-line tools, `i18n.js` for the
+window. Translating the interface is a table swap, not a hunt through the logic.
+
+The seam that buys that has to be checked by something, because no compiler
+sees across it. A step the backend emits with no wording in the window reaches
+the user as its own identifier, and 0.6.0 shipped exactly that; a sentence that
+takes `{approved}` from a caller passing `aproved` arrives with a brace in it,
+in one language, months later. `tools/check_strings.py` proves every step has
+wording in all four languages, and `tools/check_placeholders.mjs` renders the
+sentences that take arguments against the shipped dictionary. Both run in CI and
+in the release script.
 
 ---
 
@@ -483,6 +575,8 @@ Tests worth reading first:
 | `no_generated_plan_ever_violates_the_safety_invariant` | 60 defect patterns, no plan over a bad sector |
 | `no_cluster_the_spliced_volume_offers_touches_an_unapproved_sector` | Every allocatable cluster, on a fragmented card |
 | `a_defect_in_the_metadata_is_refused_rather_than_marked` | A volume whose table cannot be read is not a volume |
+| `a_card_written_over_since_the_scan_reports_the_reference_gone` | A re-check of a reformatted card diagnoses nothing |
+| `the_inspection_pattern_is_not_mistaken_for_a_table` | What is kept as the way back is a partition table |
 | `no_combination_ever_unblocks_a_system_disk` | The guards cannot be talked around |
 | `consent_does_not_transfer_to_a_swapped_card` | Fingerprint binding |
 | `real_capacity_is_not_overestimated_when_the_gcd_is_a_multiple` | Counterfeit capacity arithmetic |
@@ -515,10 +609,15 @@ keeps contrast above 4.5:1 throughout.
   commands through to the card, so wear indicators are unavailable through an
   adapter.
 - **A card can degrade between the scan and the write.** Fingerprint checks catch
-  a swapped card, not a card that got worse.
+  a swapped card, not a card that got worse. The apply path answers this by
+  re-reading the area it is about to use; the re-check answers it for a card
+  that has been sitting. Neither can answer it for the future.
+- **The inspection cannot prove retention on its own.** It measures the interval
+  each sector actually waited, and says so. A longer answer needs the re-check,
+  which needs a card that has not been written to since.
 - **A full inspection takes hours.** A 128 GB card at 17 MB/s is roughly two
   hours to write and two to verify. There is no shortcut that also proves
-  anything.
+  anything — stopping early keeps what is proven, at the cost of the diagnosis.
 
 ---
 
@@ -548,8 +647,9 @@ program will never ask — the link in the window's footer is the whole of it.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: the safety invariant
-is not negotiable, the domain never returns sentences, and `cargo fmt`, `clippy`
-with `-D warnings`, the test suite and `cargo audit` all run in CI.
+is not negotiable, the domain never returns sentences, and the window scripts,
+the interface strings, the sentence arguments, `cargo fmt`, `clippy` with
+`-D warnings`, the test suite and `cargo audit` all run in CI.
 
 ## License
 
